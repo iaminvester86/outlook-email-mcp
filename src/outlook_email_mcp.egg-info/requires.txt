@@ -1,9 +1,0 @@
-mcp<2,>=1.0
-
-[test]
-pytest>=7
-
-[windows]
-
-[windows:platform_system == "Windows"]
-pywin32>=306

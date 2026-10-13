@@ -1,2 +1,0 @@
-[console_scripts]
-outlook-email-mcp = outlook_email_mcp.server:main
