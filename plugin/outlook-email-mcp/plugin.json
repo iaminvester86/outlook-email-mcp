@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "outlook-email-mcp",
+  "version": "0.1.0",
+  "description": "Windows-first Outlook, PST, IMAP, and SMTP email tools for summaries, search, drafts, attachments, and confirmed sending.",
+  "author": {
+    "name": "outlook-email-mcp contributors"
+  },
+  "homepage": "https://github.com/REPLACE_WITH_OWNER/outlook-email-mcp",
+  "repository": "https://github.com/REPLACE_WITH_OWNER/outlook-email-mcp",
+  "license": "MIT",
+  "keywords": [
+    "outlook",
+    "pst",
+    "imap",
+    "smtp",
+    "email",
+    "mcp",
+    "agent-skills"
+  ]
+}

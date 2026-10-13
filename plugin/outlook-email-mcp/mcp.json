@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "outlook-email": {
+      "type": "stdio",
+      "command": "py",
+      "args": ["-3", "-m", "outlook_email_mcp"],
+      "cwd": "${PLUGIN_DATA}/outlook-email-mcp"
+    }
+  }
+}

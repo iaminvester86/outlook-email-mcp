@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "outlook-email": {
+      "command": "python",
+      "args": [
+        "-m",
+        "outlook_email_mcp"
+      ],
+      "env": {
+        "OUTLOOK_EMAIL_BACKEND": "auto",
+        "IMAP_HOST": "",
+        "IMAP_PORT": "993",
+        "IMAP_USERNAME": "",
+        "IMAP_PASSWORD": "",
+        "SMTP_HOST": "",
+        "SMTP_PORT": "587",
+        "SMTP_USERNAME": "",
+        "SMTP_PASSWORD": "",
+        "SMTP_FROM": "",
+        "OUTLOOK_EMAIL_SAVE_ROOTS": "C:\\Users\\YourWindowsUser\\Downloads\\EmailExports"
+      }
+    }
+  }
+}
