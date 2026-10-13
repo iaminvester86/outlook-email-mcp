@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: outlook-email-mcp
+Version: 0.1.0
+Summary: Windows-first Outlook and IMAP/SMTP email MCP server
+Requires-Python: >=3.10
+Requires-Dist: mcp<2,>=1.0
+Provides-Extra: windows
+Requires-Dist: pywin32>=306; platform_system == "Windows" and extra == "windows"
+Provides-Extra: test
+Requires-Dist: pytest>=7; extra == "test"
