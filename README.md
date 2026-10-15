@@ -1,8 +1,9 @@
 # Outlook Email MCP
 
 Windows-first MCP server for bounded, non-destructive email access. It uses a
-single-threaded Outlook COM worker when Outlook is available, and can fall back
-to an IMAP/SMTP account over TLS.
+single-threaded Outlook COM worker when Outlook is available, and supports
+IMAP/SMTP or POP3/SMTP over TLS for provider configurations that do not expose
+IMAP. POP3 is inbox-only and cannot store drafts.
 
 ## Run
 
@@ -81,6 +82,13 @@ For the IMAP fallback, configure `IMAP_HOST`, `IMAP_USERNAME`,
 configurable with `IMAP_PORT` (default `993`) and `SMTP_PORT` (default `587`).
 IMAP TLS cannot be disabled. SMTP uses STARTTLS by default; set `SMTP_SSL=true`
 for implicit TLS instead.
+
+For POP3-only providers, set `OUTLOOK_EMAIL_BACKEND=pop3` and configure
+`POP3_HOST`, `POP3_PORT` (normally `995`), `POP3_USERNAME`, `SMTP_HOST`,
+`SMTP_USERNAME`, and the corresponding secure credential entries. POP3 uses TLS
+from connection start and supports inbox search, message retrieval, attachment
+metadata/export, and SMTP sending. It cannot list folders, preserve read/unread
+state, or save drafts; use Outlook or IMAP for those features.
 
 Attachment saves are disabled unless `OUTLOOK_EMAIL_SAVE_ROOTS` contains one or
 more allowed directories separated by the platform path separator. Results,

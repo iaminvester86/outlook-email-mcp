@@ -204,7 +204,13 @@ class OutlookBackend:
             if size > self.max_attachment_bytes:
                 raise BackendError("attachment exceeds configured safety limit")
             target = self.policy.target(directory, str(attachment.FileName))
-            attachment.SaveAsFile(str(target))
+            temporary = target.with_name(target.name + ".outlook-download")
+            attachment.SaveAsFile(str(temporary))
+            try:
+                payload = temporary.read_bytes()
+                self.policy.write_new_file(target, payload)
+            finally:
+                temporary.unlink(missing_ok=True)
             return {"path": str(target), "filename": str(attachment.FileName), "size": size}
         return self._worker.call(run)
 

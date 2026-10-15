@@ -1,12 +1,13 @@
-# IMAP/SMTP network setup and troubleshooting
+# IMAP/POP3/SMTP network setup and troubleshooting
 
-Use the network backend when classic Outlook is unavailable, when a provider supports a stable IMAP/SMTP submission interface, or when the deployment needs a provider connection independent of a local PST. IMAP reads mail; SMTP submits outbound mail. Neither protocol reads a local PST.
+Use the network backend when classic Outlook is unavailable, when a provider supports a stable IMAP/SMTP or POP3/SMTP interface, or when the deployment needs a provider connection independent of a local PST. IMAP and POP3 read mail; SMTP submits outbound mail. Neither protocol reads a local PST.
 
 ## Recommended connection settings
 
 | Service | Typical port | Transport | Purpose |
 | --- | ---: | --- | --- |
 | IMAP | 993 | TLS from connection start | Read folders/messages |
+| POP3 | 995 | TLS from connection start | Read inbox messages |
 | SMTP submission | 587 | STARTTLS | Submit messages |
 | SMTP submission | 465 | Implicit TLS | Submit messages where provider documents it |
 
@@ -28,6 +29,26 @@ SMTP_USERNAME=
 SMTP_PASSWORD=
 SMTP_FROM=
 ```
+
+For POP3-only mailboxes, use the same shape with:
+
+```text
+OUTLOOK_EMAIL_BACKEND=pop3
+POP3_HOST=pop.example.test
+POP3_PORT=995
+POP3_TLS=true
+POP3_USERNAME=
+SMTP_HOST=smtp.example.test
+SMTP_PORT=587
+SMTP_TLS=true
+SMTP_USERNAME=
+SMTP_FROM=
+```
+
+POP3 has no folders or server-side draft storage. Message identifiers are
+validated against a short content digest so mailbox reordering cannot silently
+turn an old identifier into a different message. POP3 does not reliably expose
+read/unread state, so the server reports messages as unread-state unknown.
 
 For a safer Windows setup, set `OUTLOOK_EMAIL_CREDENTIAL_BACKEND=keyring` and
 store the IMAP and SMTP passwords in Windows Credential Manager using the

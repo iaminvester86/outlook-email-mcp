@@ -8,14 +8,17 @@
       ],
       "env": {
         "OUTLOOK_EMAIL_BACKEND": "auto",
+        "OUTLOOK_EMAIL_CREDENTIAL_BACKEND": "keyring",
+        "OUTLOOK_EMAIL_CREDENTIAL_SERVICE": "outlook-email-mcp",
         "IMAP_HOST": "",
         "IMAP_PORT": "993",
         "IMAP_USERNAME": "",
-        "IMAP_PASSWORD": "",
+        "POP3_HOST": "",
+        "POP3_PORT": "995",
+        "POP3_USERNAME": "",
         "SMTP_HOST": "",
         "SMTP_PORT": "587",
         "SMTP_USERNAME": "",
-        "SMTP_PASSWORD": "",
         "SMTP_FROM": "",
         "OUTLOOK_EMAIL_SAVE_ROOTS": "C:\\Users\\YourWindowsUser\\Downloads\\EmailExports"
       }

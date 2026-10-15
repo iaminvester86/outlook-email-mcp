@@ -71,6 +71,8 @@ Do not infer that an Outlook account and an IMAP account are equivalent because 
 Return actionable, redacted errors such as:
 
 - `backend_unavailable`: Outlook is not installed/open/profile-ready or the network backend is unreachable.
+- POP3 mode is inbox-only. It cannot provide folders, stable read/unread state,
+  or server-side draft creation; use IMAP or Outlook for those operations.
 - `configuration_error`: a required non-secret setting is missing or invalid.
 - `permission_denied`: Windows, PST, Outlook, mailbox, or folder permissions blocked the request.
 - `authentication_required`: the provider requires a new sign-in, OAuth grant, or app password.

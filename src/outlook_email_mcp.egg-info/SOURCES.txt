@@ -20,6 +20,7 @@ src/outlook_email_mcp/backend/base.py
 src/outlook_email_mcp/backend/factory.py
 src/outlook_email_mcp/backend/imap.py
 src/outlook_email_mcp/backend/outlook.py
+src/outlook_email_mcp/backend/pop3.py
 tests/test_config.py
 tests/test_models_query.py
 tests/test_policy.py

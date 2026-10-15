@@ -31,6 +31,10 @@ Do not paste a real password into ChatGPT, a repository, or a command that will
 be saved in shell history. Use the actual mailbox username in `IMAP_USERNAME`
 and `SMTP_USERNAME`.
 
+For a POP3-only provider, set `OUTLOOK_EMAIL_BACKEND=pop3`, configure
+`POP3_HOST`, `POP3_PORT=995`, and `POP3_USERNAME`, and keep the SMTP settings
+for outbound mail. See `docs/NETWORK-SOLUTIONS.md` for POP3 limitations.
+
 ## 2. Start the local server
 
 ```powershell

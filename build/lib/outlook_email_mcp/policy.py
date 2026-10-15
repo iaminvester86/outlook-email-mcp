@@ -66,3 +66,18 @@ class SafePathPolicy:
         if target.exists():
             raise PolicyError("refusing to overwrite an existing attachment")
         return target
+
+    @staticmethod
+    def write_new_file(target: Path, payload: bytes) -> None:
+        """Create an export without following an existing replacement path."""
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_BINARY"):
+            flags |= os.O_BINARY
+        descriptor = os.open(os.fspath(target), flags, 0o600)
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                descriptor = -1
+                stream.write(payload)
+        finally:
+            if descriptor != -1:
+                os.close(descriptor)

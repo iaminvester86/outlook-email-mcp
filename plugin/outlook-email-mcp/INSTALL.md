@@ -27,6 +27,11 @@ Classic Outlook must be installed for Outlook/PST access. Set
 Outlook is unavailable. IMAP/SMTP settings are documented in the repository's
 `docs/NETWORK-SOLUTIONS.md`.
 
+POP3-only providers are supported with `OUTLOOK_EMAIL_BACKEND=pop3`,
+`POP3_HOST`, `POP3_PORT=995`, and `POP3_USERNAME` plus the SMTP settings.
+POP3 can read the inbox and send through SMTP but cannot list folders or save
+drafts.
+
 For security, configure `OUTLOOK_EMAIL_ATTACHMENT_ROOTS` before using drafts or
 sends with attachments. The server rejects attachment files outside those
 roots and refuses to overwrite existing export files.

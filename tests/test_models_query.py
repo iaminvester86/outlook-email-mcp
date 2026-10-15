@@ -3,6 +3,7 @@ import pytest
 from outlook_email_mcp.errors import QueryError
 from outlook_email_mcp.models import Draft, Message, draft_from_dict
 from outlook_email_mcp.query import parse_query
+from outlook_email_mcp.backend.imap import _imap_quote
 
 
 def test_message_and_draft_are_bounded():
@@ -29,3 +30,7 @@ def test_query_reports_bad_quotes_and_draft_requires_recipient():
 def test_query_rejects_control_characters():
     with pytest.raises(QueryError):
         parse_query("subject:invoice\r\nX-Injected: yes")
+
+
+def test_imap_search_values_are_quoted():
+    assert _imap_quote('a"\\b') == '"a\\"\\\\b"'

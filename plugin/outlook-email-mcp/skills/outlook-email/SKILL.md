@@ -6,7 +6,7 @@ description: Use the local outlook-email-mcp server for Classic Outlook, PST, IM
 # Outlook Email MCP
 
 Use the `outlook-email` MCP server for the user's local Outlook profile and
-mounted PST stores, or its configured IMAP/SMTP fallback.
+mounted PST stores, or its configured IMAP/SMTP or POP3/SMTP fallback.
 
 ## Safe workflow
 
@@ -31,3 +31,5 @@ mounted PST stores, or its configured IMAP/SMTP fallback.
 
 The server bounds result size, body size, attachment size, and attachment save
 paths. It does not expose delete, move, arbitrary COM, or arbitrary MAPI tools.
+POP3 is inbox-only and cannot store drafts; report that limitation when the
+status tool identifies the POP3 backend.

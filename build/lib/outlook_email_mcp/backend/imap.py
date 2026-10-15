@@ -32,6 +32,11 @@ def _decode(value: str | None) -> str:
     return str(email.header.make_header(email.header.decode_header(value)))
 
 
+def _imap_quote(value: str) -> str:
+    """Quote a search value without allowing IMAP command syntax injection."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 class ImapBackend:
     name = "imap"
 
@@ -70,7 +75,7 @@ class ImapBackend:
 
     def _connect(self) -> imaplib.IMAP4_SSL:
         try:
-            client = imaplib.IMAP4_SSL(self.settings.imap_host, self.settings.imap_port, ssl_context=ssl.create_default_context())
+            client = imaplib.IMAP4_SSL(self.settings.imap_host, self.settings.imap_port, timeout=self.settings.network_timeout, ssl_context=ssl.create_default_context())
             client.login(self.settings.imap_username or "", self._imap_password or "")
             return client
         except Exception as exc:
@@ -131,19 +136,19 @@ class ImapBackend:
         parsed = parse_query(query)
         criteria: list[str] = []
         if parsed.sender:
-            criteria.extend(["FROM", f'"{parsed.sender}"'])
+            criteria.extend(["FROM", _imap_quote(parsed.sender)])
         if parsed.recipient:
-            criteria.extend(["TO", f'"{parsed.recipient}"'])
+            criteria.extend(["TO", _imap_quote(parsed.recipient)])
         if parsed.subject:
-            criteria.extend(["SUBJECT", f'"{parsed.subject}"'])
+            criteria.extend(["SUBJECT", _imap_quote(parsed.subject)])
         if parsed.unread is True:
             criteria.append("UNSEEN")
         elif parsed.unread is False:
             criteria.append("SEEN")
         if parsed.has_attachment:
-            criteria.extend(["TEXT", '"Content-Disposition: attachment"'])
+            criteria.extend(["TEXT", _imap_quote("Content-Disposition: attachment")])
         for term in parsed.text:
-            criteria.extend(["TEXT", f'"{term}"'])
+            criteria.extend(["TEXT", _imap_quote(term)])
         return criteria or ["ALL"]
 
     def search(self, query: str, folder_id: str | None, limit: int) -> list[Message]:
@@ -259,7 +264,7 @@ class ImapBackend:
                 raise BackendError("attachment exceeds configured safety limit")
             filename = _decode(part.get_filename())
             target = self.policy.target(directory, filename)
-            target.write_bytes(payload)
+            self.policy.write_new_file(target, payload)
             return {"path": str(target), "filename": filename, "size": len(payload)}
         finally:
             self._logout(client)

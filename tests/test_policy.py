@@ -43,3 +43,12 @@ def test_policy_rejects_reserved_names_and_overwrites(tmp_path: Path):
     existing.write_text("old", encoding="utf-8")
     with pytest.raises(PolicyError):
         policy.target(tmp_path, existing.name)
+
+
+def test_policy_atomic_export_does_not_overwrite(tmp_path: Path):
+    policy = SafePathPolicy((tmp_path,))
+    target = policy.target(tmp_path, "new.txt")
+    policy.write_new_file(target, b"safe")
+    assert target.read_bytes() == b"safe"
+    with pytest.raises(FileExistsError):
+        policy.write_new_file(target, b"changed")

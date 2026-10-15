@@ -33,6 +33,11 @@ def _int(name: str, value: str | None, default: int, minimum: int, maximum: int)
 @dataclass(frozen=True)
 class Settings:
     backend: str = "auto"
+    pop3_host: str | None = None
+    pop3_port: int = 995
+    pop3_username: str | None = None
+    pop3_password: str | None = None
+    pop3_tls: bool = True
     imap_host: str | None = None
     imap_port: int = 993
     imap_username: str | None = None
@@ -58,6 +63,7 @@ class Settings:
     http_path: str = "/mcp"
     credential_backend: str = "env"
     credential_service: str | None = None
+    network_timeout: int = 30
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -65,8 +71,10 @@ class Settings:
         backend = env.get("OUTLOOK_EMAIL_BACKEND", env.get("EMAIL_BACKEND", "auto")).strip().lower()
         if backend == "imap-smtp":
             backend = "imap"
-        if backend not in {"auto", "outlook", "imap"}:
-            raise ConfigurationError("OUTLOOK_EMAIL_BACKEND must be auto, outlook, or imap")
+        if backend == "pop3-smtp":
+            backend = "pop3"
+        if backend not in {"auto", "outlook", "imap", "pop3"}:
+            raise ConfigurationError("OUTLOOK_EMAIL_BACKEND must be auto, outlook, imap, or pop3")
         roots = tuple(
             Path(p).expanduser()
             for p in env.get("OUTLOOK_EMAIL_SAVE_ROOTS", "").split(os.pathsep)
@@ -79,6 +87,11 @@ class Settings:
         )
         settings = cls(
             backend=backend,
+            pop3_host=env.get("POP3_HOST") or None,
+            pop3_port=_int("POP3_PORT", env.get("POP3_PORT"), 995, 1, 65535),
+            pop3_username=env.get("POP3_USERNAME") or None,
+            pop3_password=env.get("POP3_PASSWORD"),
+            pop3_tls=_bool(env.get("POP3_TLS"), True),
             imap_host=env.get("IMAP_HOST") or None,
             imap_port=_int("IMAP_PORT", env.get("IMAP_PORT"), 993, 1, 65535),
             imap_username=env.get("IMAP_USERNAME") or None,
@@ -110,6 +123,7 @@ class Settings:
             http_path=env.get("OUTLOOK_EMAIL_HTTP_PATH", "/mcp").strip() or "/mcp",
             credential_backend=env.get("OUTLOOK_EMAIL_CREDENTIAL_BACKEND", "env").strip().lower(),
             credential_service=env.get("OUTLOOK_EMAIL_CREDENTIAL_SERVICE") or None,
+            network_timeout=_int("OUTLOOK_EMAIL_NETWORK_TIMEOUT", env.get("OUTLOOK_EMAIL_NETWORK_TIMEOUT"), 30, 1, 300),
         )
         settings.validate()
         return settings
@@ -127,10 +141,14 @@ class Settings:
             raise ConfigurationError("OUTLOOK_EMAIL_CREDENTIAL_SERVICE is required with keyring credentials")
         if not self.imap_tls:
             raise ConfigurationError("IMAP_TLS must remain enabled")
+        if not self.pop3_tls:
+            raise ConfigurationError("POP3_TLS must remain enabled")
         if not self.smtp_tls and not self.smtp_ssl:
             raise ConfigurationError("SMTP_TLS or SMTP_SSL must be enabled")
         if self.backend == "imap" and not self.imap_host:
             raise ConfigurationError("IMAP_HOST is required when backend=imap")
+        if self.backend == "pop3" and not self.pop3_host:
+            raise ConfigurationError("POP3_HOST is required when backend=pop3")
 
     @property
     def imap_configured(self) -> bool:
@@ -139,3 +157,7 @@ class Settings:
     @property
     def smtp_configured(self) -> bool:
         return bool(self.smtp_host and self.smtp_username and (self.smtp_password or self.credential_backend == "keyring"))
+
+    @property
+    def pop3_configured(self) -> bool:
+        return bool(self.pop3_host and self.pop3_username and (self.pop3_password or self.credential_backend == "keyring"))

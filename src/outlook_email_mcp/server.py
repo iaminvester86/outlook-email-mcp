@@ -9,7 +9,7 @@ from typing import Any
 
 from .backend.factory import BackendManager
 from .config import Settings
-from .errors import EmailMcpError, UnsupportedBackendError
+from .errors import ConfigurationError, EmailMcpError, UnsupportedBackendError
 from .models import Draft, draft_from_dict
 from .policy import SafePathPolicy
 
@@ -124,10 +124,14 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=None)
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     args = parser.parse_args()
-    settings = Settings.from_env()
-    if args.transport or args.host or args.port:
-        from dataclasses import replace
-        settings = replace(settings, transport=args.transport or settings.transport, http_host=args.host or settings.http_host, http_port=args.port or settings.http_port)
+    try:
+        settings = Settings.from_env()
+        if args.transport or args.host or args.port:
+            from dataclasses import replace
+            settings = replace(settings, transport=args.transport or settings.transport, http_host=args.host or settings.http_host, http_port=args.port or settings.http_port)
+            settings.validate()
+    except ConfigurationError as exc:
+        parser.error(str(exc))
     service = EmailService(settings)
     try:
         create_server(service).run(transport=service.settings.transport)

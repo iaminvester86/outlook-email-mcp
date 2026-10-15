@@ -5,6 +5,7 @@ from ..errors import ConfigurationError, UnsupportedBackendError
 from ..policy import SafePathPolicy
 from .imap import ImapBackend
 from .outlook import OutlookBackend
+from .pop3 import Pop3Backend
 
 
 class BackendManager:
@@ -26,10 +27,21 @@ class BackendManager:
                 self.selection_error = str(exc)
                 if self.settings.backend == "outlook":
                     raise
+        candidates = []
         if self.settings.backend in {"auto", "imap"}:
-            self.backend = ImapBackend(self.settings, self.policy)
-            return
-        raise ConfigurationError("no usable email backend is configured")
+            candidates.append(("imap", ImapBackend))
+        if self.settings.backend in {"auto", "pop3"}:
+            candidates.append(("pop3", Pop3Backend))
+        errors = []
+        for name, backend_type in candidates:
+            try:
+                self.backend = backend_type(self.settings, self.policy)
+                return
+            except (ConfigurationError, UnsupportedBackendError) as exc:
+                errors.append(f"{name}: {exc}")
+                if self.settings.backend != "auto":
+                    raise
+        raise ConfigurationError("no usable email backend is configured" + (" (" + "; ".join(errors) + ")" if errors else ""))
 
     def close(self) -> None:
         if self.backend:
