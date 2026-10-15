@@ -7,6 +7,7 @@ License-File: LICENSE
 Requires-Dist: mcp<2,>=1.0
 Provides-Extra: windows
 Requires-Dist: pywin32>=306; platform_system == "Windows" and extra == "windows"
+Requires-Dist: keyring>=25; platform_system == "Windows" and extra == "windows"
 Provides-Extra: test
 Requires-Dist: pytest>=7; extra == "test"
 Dynamic: license-file

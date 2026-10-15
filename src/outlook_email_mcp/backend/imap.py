@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import email
 import imaplib
+import logging
 import mimetypes
 import os
 import smtplib
@@ -21,6 +22,8 @@ from ..errors import BackendError, ConfigurationError
 from ..models import Attachment, Draft, Folder, Message, Store
 from ..policy import SafePathPolicy
 from ..query import parse_query
+
+logger = logging.getLogger(__name__)
 
 
 def _decode(value: str | None) -> str:
@@ -40,6 +43,18 @@ class ImapBackend:
         settings.validate()
         self.settings = settings
         self.policy = policy
+        self._imap_password = self._secret("IMAP_PASSWORD")
+        self._smtp_password = self._secret("SMTP_PASSWORD")
+
+    def _secret(self, name: str) -> str | None:
+        if self.settings.credential_backend == "env":
+            return getattr(self.settings, name.lower(), None)
+        try:
+            import keyring  # type: ignore
+        except ImportError as exc:
+            raise ConfigurationError("install the windows extra to use keyring credentials") from exc
+        username = self.settings.imap_username if name.startswith("IMAP") else self.settings.smtp_username
+        return keyring.get_password(self.settings.credential_service or "outlook-email-mcp", username or "")
 
     def close(self) -> None:
         return None
@@ -56,7 +71,7 @@ class ImapBackend:
     def _connect(self) -> imaplib.IMAP4_SSL:
         try:
             client = imaplib.IMAP4_SSL(self.settings.imap_host, self.settings.imap_port, ssl_context=ssl.create_default_context())
-            client.login(self.settings.imap_username or "", self.settings.imap_password or "")
+            client.login(self.settings.imap_username or "", self._imap_password or "")
             return client
         except Exception as exc:
             raise BackendError("IMAP connection or authentication failed") from exc
@@ -82,7 +97,7 @@ class ImapBackend:
         try:
             client.logout()
         except Exception:
-            pass
+            logger.debug("IMAP logout failed", exc_info=True)
 
     def list_stores(self) -> list[Store]:
         return [Store("imap:store:account", self.settings.imap_username or "IMAP account", self.name)]
@@ -285,7 +300,7 @@ class ImapBackend:
                 client = smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port)
                 client.starttls(context=ssl.create_default_context())
             with client:
-                client.login(self.settings.smtp_username or "", self.settings.smtp_password or "")
+                client.login(self.settings.smtp_username or "", self._smtp_password or "")
                 client.send_message(message, to=[*draft.to, *draft.cc, *draft.bcc])
             return {"sent": True, "recipients": list(draft.to)}
         except Exception as exc:

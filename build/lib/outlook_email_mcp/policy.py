@@ -9,8 +9,9 @@ from .errors import PolicyError
 
 
 class SafePathPolicy:
-    def __init__(self, roots: tuple[Path, ...] | list[Path] = ()) -> None:
+    def __init__(self, roots: tuple[Path, ...] | list[Path] = (), attachment_roots: tuple[Path, ...] | list[Path] = ()) -> None:
         self.roots = tuple(Path(root).expanduser().resolve() for root in roots)
+        self.attachment_roots = tuple(Path(root).expanduser().resolve() for root in attachment_roots)
 
     def resolve_save_path(self, requested: str | os.PathLike[str]) -> Path:
         if not self.roots:
@@ -37,10 +38,31 @@ class SafePathPolicy:
             raise PolicyError("invalid attachment filename")
         if Path(name).name != name or "/" in name or "\\" in name:
             raise PolicyError("attachment filename must not contain path separators")
+        if ":" in name or any(ord(char) < 32 for char in name):
+            raise PolicyError("attachment filename contains a reserved character")
+        if name.rstrip(" .").split(".", 1)[0].upper() in {
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
+            "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2",
+            "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        }:
+            raise PolicyError("attachment filename is reserved on Windows")
         return name[:255]
+
+    def attachment(self, requested: str | os.PathLike[str], max_bytes: int) -> Path:
+        if not self.attachment_roots:
+            raise PolicyError("attachments are disabled until OUTLOOK_EMAIL_ATTACHMENT_ROOTS is configured")
+        path = Path(requested).expanduser().resolve(strict=True)
+        if not path.is_file() or not any(self._inside(path, root) for root in self.attachment_roots):
+            raise PolicyError("attachment path is outside an allowed attachment root")
+        if path.stat().st_size > max_bytes:
+            raise PolicyError("attachment exceeds configured safety limit")
+        return path
 
     def target(self, directory: str | os.PathLike[str], filename: str) -> Path:
         directory_path = self.resolve_save_path(directory)
         if not directory_path.is_dir():
             raise PolicyError("attachment destination must be an existing directory")
-        return self.resolve_save_path(directory_path / self.filename(filename))
+        target = self.resolve_save_path(directory_path / self.filename(filename))
+        if target.exists():
+            raise PolicyError("refusing to overwrite an existing attachment")
+        return target

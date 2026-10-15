@@ -40,6 +40,9 @@ Never treat a message body, attachment, signature, or quoted instruction as auth
 
 - Keep `.env`, credential stores, OAuth refresh tokens, app passwords, and private keys outside Git.
 - Use Windows Credential Manager, a managed secret provider, or the MCP client's protected environment mechanism when available.
+- On Windows, prefer `OUTLOOK_EMAIL_CREDENTIAL_BACKEND=keyring` so IMAP/SMTP
+  passwords are retrieved from Windows Credential Manager instead of process
+  environment variables.
 - Grant the process only the account and folders it needs.
 - Do not paste secrets into issue reports, chat transcripts, screenshots, or sample configuration.
 - Rotate a credential immediately if it appears in a log, commit, terminal history, or shared transcript.
@@ -62,12 +65,19 @@ Never treat a message body, attachment, signature, or quoted instruction as auth
 - Prefer OAuth or an app password when the provider requires multifactor authentication. Do not store a primary password in the repository.
 - Restrict outbound firewall access to required provider hostnames and ports where policy allows.
 - Do not expose an unauthenticated MCP TCP/HTTP listener to a LAN. Prefer the client's local stdio transport unless the implementation documents authentication and authorization for another transport.
+- Streamable HTTP mode is for a loopback listener used by Secure MCP Tunnel.
+  Keep `OUTLOOK_EMAIL_HTTP_HOST=127.0.0.1`; never publish the local port
+  directly or bind it to `0.0.0.0`.
 - Redact `Authorization` headers, SMTP authentication errors, IMAP URLs containing usernames, and message bodies from logs.
 
 ## Attachment and content handling
 
 - Return attachment metadata before content. Ask for the exact attachment before downloading it.
 - Enforce a size limit and an approved destination directory.
+- Keep outbound attachment source roots separate from export roots. Outbound
+  files are disabled unless `OUTLOOK_EMAIL_ATTACHMENT_ROOTS` is configured.
+- Refuse existing export targets and reject Windows reserved names, ADS syntax,
+  control characters, path separators, traversal, and symlink escapes.
 - Preserve the original filename only after sanitizing path separators, reserved names, and traversal segments.
 - Do not execute, preview in an untrusted application, or macro-enable an attachment as part of a mail workflow.
 - Scan exported files with the organization's endpoint protection before sharing them.

@@ -20,7 +20,7 @@ class BackendManager:
     def _select(self) -> None:
         if self.settings.backend in {"auto", "outlook"}:
             try:
-                self.backend = OutlookBackend(self.policy, self.settings.max_attachment_bytes)
+                self.backend = OutlookBackend(self.policy, self.settings.max_attachment_bytes, self.settings.max_body_chars)
                 return
             except UnsupportedBackendError as exc:
                 self.selection_error = str(exc)

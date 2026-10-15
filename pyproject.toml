@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 dependencies = ["mcp>=1.0,<2"]
 
 [project.optional-dependencies]
-windows = ["pywin32>=306; platform_system == 'Windows'"]
+windows = ["pywin32>=306; platform_system == 'Windows'", "keyring>=25; platform_system == 'Windows'"]
 test = ["pytest>=7"]
 
 [project.scripts]

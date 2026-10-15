@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from typing import Any
@@ -58,7 +57,18 @@ def create_server(service: EmailService | None = None):
     from mcp.server.fastmcp import FastMCP
 
     service = service or EmailService()
-    mcp = FastMCP("outlook-email")
+    settings = service.settings
+    def setting(name: str, default: Any) -> Any:
+        value = getattr(settings, name, default)
+        return value if isinstance(value, type(default)) else default
+
+    mcp = FastMCP(
+        "outlook-email",
+        host=setting("http_host", "127.0.0.1"),
+        port=setting("http_port", 8000),
+        streamable_http_path=setting("http_path", "/mcp"),
+        sse_path=setting("http_path", "/mcp"),
+    )
 
     @mcp.tool()
     def status() -> dict[str, Any]:
@@ -109,11 +119,18 @@ def create_server(service: EmailService | None = None):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
+    parser.add_argument("--transport", choices=("stdio", "streamable-http", "sse"), default=None)
+    parser.add_argument("--host", default=None)
+    parser.add_argument("--port", type=int, default=None)
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    service = EmailService()
+    args = parser.parse_args()
+    settings = Settings.from_env()
+    if args.transport or args.host or args.port:
+        from dataclasses import replace
+        settings = replace(settings, transport=args.transport or settings.transport, http_host=args.host or settings.http_host, http_port=args.port or settings.http_port)
+    service = EmailService(settings)
     try:
-        create_server(service).run(transport="stdio")
+        create_server(service).run(transport=service.settings.transport)
     finally:
         service.close()
 

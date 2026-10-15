@@ -24,3 +24,8 @@ def test_config_parses_limits_and_roots(tmp_path):
 def test_config_rejects_plaintext_transport():
     with pytest.raises(ConfigurationError):
         Settings.from_env({"IMAP_TLS": "false"})
+
+
+def test_http_transport_cannot_bind_public_interface():
+    with pytest.raises(ConfigurationError):
+        Settings.from_env({"OUTLOOK_EMAIL_TRANSPORT": "streamable-http", "OUTLOOK_EMAIL_HTTP_HOST": "0.0.0.0"})

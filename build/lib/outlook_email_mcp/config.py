@@ -49,7 +49,15 @@ class Settings:
     max_results: int = 50
     max_body_chars: int = 20000
     max_attachment_bytes: int = 25 * 1024 * 1024
+    max_message_bytes: int = 50 * 1024 * 1024
     allowed_save_roots: tuple[Path, ...] = ()
+    allowed_attachment_roots: tuple[Path, ...] = ()
+    transport: str = "stdio"
+    http_host: str = "127.0.0.1"
+    http_port: int = 8000
+    http_path: str = "/mcp"
+    credential_backend: str = "env"
+    credential_service: str | None = None
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -62,6 +70,11 @@ class Settings:
         roots = tuple(
             Path(p).expanduser()
             for p in env.get("OUTLOOK_EMAIL_SAVE_ROOTS", "").split(os.pathsep)
+            if p.strip()
+        )
+        attachment_roots = tuple(
+            Path(p).expanduser()
+            for p in env.get("OUTLOOK_EMAIL_ATTACHMENT_ROOTS", "").split(os.pathsep)
             if p.strip()
         )
         settings = cls(
@@ -88,12 +101,30 @@ class Settings:
                 1,
                 500 * 1024 * 1024,
             ),
+            max_message_bytes=_int("OUTLOOK_EMAIL_MAX_MESSAGE_BYTES", env.get("OUTLOOK_EMAIL_MAX_MESSAGE_BYTES"), 50 * 1024 * 1024, 1_000, 500 * 1024 * 1024),
             allowed_save_roots=roots,
+            allowed_attachment_roots=attachment_roots,
+            transport=env.get("OUTLOOK_EMAIL_TRANSPORT", "stdio").strip().lower(),
+            http_host=env.get("OUTLOOK_EMAIL_HTTP_HOST", "127.0.0.1").strip(),
+            http_port=_int("OUTLOOK_EMAIL_HTTP_PORT", env.get("OUTLOOK_EMAIL_HTTP_PORT"), 8000, 1, 65535),
+            http_path=env.get("OUTLOOK_EMAIL_HTTP_PATH", "/mcp").strip() or "/mcp",
+            credential_backend=env.get("OUTLOOK_EMAIL_CREDENTIAL_BACKEND", "env").strip().lower(),
+            credential_service=env.get("OUTLOOK_EMAIL_CREDENTIAL_SERVICE") or None,
         )
         settings.validate()
         return settings
 
     def validate(self) -> None:
+        if self.transport not in {"stdio", "streamable-http", "sse"}:
+            raise ConfigurationError("OUTLOOK_EMAIL_TRANSPORT must be stdio, streamable-http, or sse")
+        if self.transport != "stdio" and self.http_host not in {"127.0.0.1", "localhost", "::1"}:
+            raise ConfigurationError("HTTP transport must bind to localhost; use Secure MCP Tunnel for remote access")
+        if not self.http_path.startswith("/") or "?" in self.http_path or "#" in self.http_path:
+            raise ConfigurationError("OUTLOOK_EMAIL_HTTP_PATH must be an absolute URL path")
+        if self.credential_backend not in {"env", "keyring"}:
+            raise ConfigurationError("OUTLOOK_EMAIL_CREDENTIAL_BACKEND must be env or keyring")
+        if self.credential_backend == "keyring" and not self.credential_service:
+            raise ConfigurationError("OUTLOOK_EMAIL_CREDENTIAL_SERVICE is required with keyring credentials")
         if not self.imap_tls:
             raise ConfigurationError("IMAP_TLS must remain enabled")
         if not self.smtp_tls and not self.smtp_ssl:
@@ -103,8 +134,8 @@ class Settings:
 
     @property
     def imap_configured(self) -> bool:
-        return bool(self.imap_host and self.imap_username and self.imap_password)
+        return bool(self.imap_host and self.imap_username and (self.imap_password or self.credential_backend == "keyring"))
 
     @property
     def smtp_configured(self) -> bool:
-        return bool(self.smtp_host and self.smtp_username and self.smtp_password)
+        return bool(self.smtp_host and self.smtp_username and (self.smtp_password or self.credential_backend == "keyring"))

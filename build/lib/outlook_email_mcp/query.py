@@ -36,6 +36,8 @@ class MessageQuery:
 
 
 def parse_query(value: str | None) -> MessageQuery:
+    if value and any(ord(char) < 32 for char in value):
+        raise QueryError("query cannot contain control characters")
     try:
         tokens = shlex.split(value or "")
     except ValueError as exc:
@@ -48,6 +50,8 @@ def parse_query(value: str | None) -> MessageQuery:
             continue
         key, val = token.split(":", 1)
         key, val = key.lower(), val.strip()
+        if any(ord(char) < 32 for char in val):
+            raise QueryError("query values cannot contain control characters")
         if key in {"from", "sender"}:
             if not val:
                 raise QueryError("from: requires a value")

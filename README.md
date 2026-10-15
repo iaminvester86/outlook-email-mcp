@@ -24,6 +24,45 @@ client. It will appear silent while waiting for protocol input; diagnostics go
 to stderr. See `examples/mcp-client.config.json` for a client configuration
 starting point.
 
+## ChatGPT Secure MCP Tunnel
+
+ChatGPT cannot launch this local Python process directly. For ChatGPT web,
+run the server in Streamable HTTP mode and expose only its loopback endpoint
+through OpenAI's Secure MCP Tunnel:
+
+```powershell
+$env:OUTLOOK_EMAIL_TRANSPORT = "streamable-http"
+$env:OUTLOOK_EMAIL_HTTP_HOST = "127.0.0.1"
+$env:OUTLOOK_EMAIL_HTTP_PORT = "8000"
+$env:OUTLOOK_EMAIL_HTTP_PATH = "/mcp"
+py -3 -m outlook_email_mcp --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+In ChatGPT web, use **Plugins → + → Add custom MCP server**, choose **Tunnel**,
+select the Secure MCP Tunnel that targets this local server, review the
+discovered tools and permissions, then create the plugin. This requires a
+ChatGPT Business or Enterprise/Edu workspace with the required admin or RBAC
+permission. ChatGPT keeps a reviewed/frozen tool snapshot; refresh the app
+after changing tools.
+
+The server intentionally binds to `127.0.0.1` by default. Do not change the
+host to `0.0.0.0` or expose port 8000 directly to the Internet. The tunnel is
+the reachability boundary. Secure MCP Tunnel setup is performed in OpenAI's
+tools; this repository does not contain tunnel credentials or a public relay.
+
+For IMAP/SMTP credentials, prefer Windows Credential Manager:
+
+```powershell
+py -3 -m pip install -e ".[windows]"
+python -c "import keyring; keyring.set_password('outlook-email-mcp', 'you@example.com', 'PASTE_LOCALLY_ONLY')"
+$env:OUTLOOK_EMAIL_CREDENTIAL_BACKEND = "keyring"
+$env:OUTLOOK_EMAIL_CREDENTIAL_SERVICE = "outlook-email-mcp"
+```
+
+Set the username in `IMAP_USERNAME` and `SMTP_USERNAME`; the passwords are
+looked up locally by username and are not placed in process environment
+variables. Never paste a real password into chat or commit it.
+
 ## Agent Plugin package
 
 The downloadable Agent Plugin package is under
@@ -52,6 +91,10 @@ inside `OUTLOOK_EMAIL_ATTACHMENT_ROOTS`; existing files are never overwritten
 on export.
 
 ## Tools
+
+For ChatGPT web, follow `docs/CHATGPT-TUNNEL.md`. ChatGPT cannot launch this
+local process directly; use the loopback Streamable HTTP mode through Secure
+MCP Tunnel. The server rejects non-loopback HTTP binds.
 
 The server exposes `status`, `list_stores`, `list_folders`, `search`,
 `get_message`, `list_attachments`, `save_attachment`, `prepare_draft`,

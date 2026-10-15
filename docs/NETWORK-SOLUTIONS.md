@@ -29,6 +29,12 @@ SMTP_PASSWORD=
 SMTP_FROM=
 ```
 
+For a safer Windows setup, set `OUTLOOK_EMAIL_CREDENTIAL_BACKEND=keyring` and
+store the IMAP and SMTP passwords in Windows Credential Manager using the
+`keyring` package. Keep `IMAP_USERNAME` and `SMTP_USERNAME` as non-secret
+identifiers. Environment variables remain supported for isolated testing but
+are more exposed to local process inspection.
+
 The `.test` hostname above is a documentation placeholder. Replace it with the provider's published endpoint. Keep credentials blank in templates and provide them through a protected local mechanism.
 
 ## Windows connectivity checks

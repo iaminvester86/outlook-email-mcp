@@ -83,9 +83,10 @@ class _ComWorker:
 class OutlookBackend:
     name = "outlook"
 
-    def __init__(self, policy: SafePathPolicy, max_attachment_bytes: int = 25 * 1024 * 1024) -> None:
+    def __init__(self, policy: SafePathPolicy, max_attachment_bytes: int = 25 * 1024 * 1024, max_body_chars: int = 20000) -> None:
         self.policy = policy
         self.max_attachment_bytes = max_attachment_bytes
+        self.max_body_chars = max_body_chars
         self._worker = _ComWorker()
 
     def close(self) -> None:
@@ -173,7 +174,7 @@ class OutlookBackend:
             sender=str(getattr(item, "SenderEmailAddress", "") or getattr(item, "SenderName", "")),
             to=tuple(to_addresses),
             cc=tuple(cc_addresses),
-            received_at=received_at, body=str(getattr(item, "Body", "")),
+            received_at=received_at, body=str(getattr(item, "Body", ""))[: self.max_body_chars],
             unread=bool(getattr(item, "UnRead", False)), has_attachments=count > 0,
             folder_id=folder_id, preview=str(getattr(item, "Body", ""))[:300],
         )
@@ -213,7 +214,7 @@ class OutlookBackend:
             item.To = ";".join(draft.to); item.CC = ";".join(draft.cc); item.BCC = ";".join(draft.bcc)
             item.Subject = draft.subject; item.Body = draft.body
             for path in draft.attachments:
-                item.Attachments.Add(os.fspath(path))
+                item.Attachments.Add(os.fspath(self.policy.attachment(path, self.max_attachment_bytes)))
             item.Save()
             return {"created": True, "id": f"outlook:message:{getattr(item, 'EntryID', '')}", "folder": "Drafts"}
         return self._worker.call(run)
@@ -224,7 +225,7 @@ class OutlookBackend:
             item.To = ";".join(draft.to); item.CC = ";".join(draft.cc); item.BCC = ";".join(draft.bcc)
             item.Subject = draft.subject; item.Body = draft.body
             for path in draft.attachments:
-                item.Attachments.Add(os.fspath(path))
+                item.Attachments.Add(os.fspath(self.policy.attachment(path, self.max_attachment_bytes)))
             item.Send()
             return {"sent": True, "recipients": list(draft.to)}
         return self._worker.call(run)
