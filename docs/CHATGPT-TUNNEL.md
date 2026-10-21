@@ -1,83 +1,44 @@
-# ChatGPT Secure MCP Tunnel setup
+# Authenticated HTTP and tunnel setup
 
-ChatGPT web cannot launch a local Python stdio MCP process. It can connect to a
-custom MCP server through a public HTTPS endpoint or an OpenAI Secure MCP
-Tunnel. This repository supports the tunnel path by serving Streamable HTTP on
-loopback.
+Local stdio is recommended. A remote MCP client cannot launch this local Python
+process; an HTTP-capable client needs a separately secured connection to the
+server computer. This guide describes this server's requirements, without assuming
+any hosted product's current UI, subscription, or tunnel support.
 
-## 1. Install and configure locally
-
-From the repository root in PowerShell:
+Configure the mailbox, Outlook store allowlist, and credential source first. Then:
 
 ```powershell
-py -3 -m pip install -e ".[windows]"
-$env:OUTLOOK_EMAIL_BACKEND = "auto"
 $env:OUTLOOK_EMAIL_TRANSPORT = "streamable-http"
 $env:OUTLOOK_EMAIL_HTTP_HOST = "127.0.0.1"
 $env:OUTLOOK_EMAIL_HTTP_PORT = "8000"
-$env:OUTLOOK_EMAIL_HTTP_PATH = "/mcp"
+$env:OUTLOOK_EMAIL_HTTP_TOKEN = & .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
+.\.venv\Scripts\python.exe -m outlook_email_mcp
 ```
 
-For IMAP/SMTP, configure the host and usernames. Prefer Windows Credential
-Manager for passwords:
+This captures the generated token into the server process environment without
+printing it in the terminal. Supply the same token to the client's protected
+secret setting. Do not put it in a URL, committed JSON, command arguments, or chat.
+It is lost when that environment/session ends; use a protected secret manager for
+persistent deployments and restart the server after rotation.
 
-```powershell
-$env:OUTLOOK_EMAIL_CREDENTIAL_BACKEND = "keyring"
-$env:OUTLOOK_EMAIL_CREDENTIAL_SERVICE = "outlook-email-mcp"
-python -c "import keyring; keyring.set_password('outlook-email-mcp', 'you@example.com', 'ENTER_LOCALLY_ONLY')"
-```
+The default endpoint is `http://127.0.0.1:8000/mcp`. Every request needs
+`Authorization: Bearer <token>`. The local listener rejects absent/wrong tokens,
+duplicate Authorization headers, non-loopback binds, unapproved Host headers,
+and browser Origins outside the configured loopback addresses.
 
-Do not paste a real password into ChatGPT, a repository, or a command that will
-be saved in shell history. Use the actual mailbox username in `IMAP_USERNAME`
-and `SMTP_USERNAME`.
+SSE uses the same authentication policy, including its separate message POST
+endpoint. The client must send the bearer header on every transport request.
 
-For a POP3-only provider, set `OUTLOOK_EMAIL_BACKEND=pop3`, configure
-`POP3_HOST`, `POP3_PORT=995`, and `POP3_USERNAME`, and keep the SMTP settings
-for outbound mail. See `docs/NETWORK-SOLUTIONS.md` for POP3 limitations.
+If using a tunnel/reverse proxy, it must provide HTTPS, restrict access to the
+intended user, retain bearer authentication, and forward the correct loopback
+Host. Do not weaken host/origin checks to make an arbitrary proxy work. Never
+port-forward the listener directly onto a LAN or the Internet.
 
-## 2. Start the local server
+Compatibility must be tested with the selected client. A client/tunnel that cannot
+preserve the required authentication headers is unsupported by this setup; use
+local stdio instead. This project does not create tunnel credentials or implement
+an OAuth authorization server.
 
-```powershell
-py -3 -m outlook_email_mcp --transport streamable-http --host 127.0.0.1 --port 8000
-```
-
-The process should log a loopback Uvicorn listener. The server rejects public
-bind addresses such as `0.0.0.0` in HTTP mode. Do not port-forward port 8000
-or place it directly on the Internet.
-
-## 3. Configure the Secure MCP Tunnel
-
-Use OpenAI's Secure MCP Tunnel tooling to target the local endpoint:
-
-```text
-http://127.0.0.1:8000/mcp
-```
-
-The tunnel setup and tunnel ID are managed by OpenAI. This repository does not
-create, store, or transmit tunnel credentials.
-
-## 4. Add the custom server in ChatGPT
-
-In ChatGPT web, open **Plugins → + → Add custom MCP server**, choose **Tunnel**,
-select the Secure MCP Tunnel or enter its tunnel ID, review the discovered
-tools and permissions, and create the plugin.
-
-This feature is subject to the ChatGPT plan, workspace role, and RBAC policy.
-OpenAI's current Help Center states that full custom MCP support is available
-for Business and Enterprise/Edu workspaces, with permissions controlled by
-admins and owners.
-
-## 5. Test read-only operations first
-
-Start a new conversation and select the created plugin. Test `status`,
-`list_stores`, `list_folders`, a narrow `search`, and `get_message` in that
-order. Only after those work should you test `prepare_draft` and `create_draft`.
-`send_email` requires `confirm=true`, and ChatGPT workspace action permissions
-should be reviewed before enabling it.
-
-ChatGPT stores a reviewed tool snapshot. After changing this repository or
-adding tools, refresh the app's tool list in ChatGPT workspace settings and
-review the changes before using it again.
-
-This does not make local PST data available when the Windows PC is offline, does
-not create a public relay, and does not bypass ChatGPT workspace permissions.
+Remote sending still requires a person to approve the complete message on the
+server's desktop. HTTP access does not enable unattended sends or bypass mailbox
+store restrictions, disabled write tools, or attachment policies.

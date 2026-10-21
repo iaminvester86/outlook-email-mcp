@@ -21,7 +21,14 @@ class BackendManager:
     def _select(self) -> None:
         if self.settings.backend in {"auto", "outlook"}:
             try:
-                self.backend = OutlookBackend(self.policy, self.settings.max_attachment_bytes, self.settings.max_body_chars)
+                self.backend = OutlookBackend(
+                    self.policy,
+                    self.settings.max_attachment_bytes,
+                    self.settings.max_body_chars,
+                    self.settings.allowed_outlook_stores,
+                    self.settings.outlook_send_account,
+                    self.settings.max_message_bytes,
+                )
                 return
             except UnsupportedBackendError as exc:
                 self.selection_error = str(exc)
@@ -41,7 +48,9 @@ class BackendManager:
                 errors.append(f"{name}: {exc}")
                 if self.settings.backend != "auto":
                     raise
-        raise ConfigurationError("no usable email backend is configured" + (" (" + "; ".join(errors) + ")" if errors else ""))
+        raise ConfigurationError(
+            "no usable email backend is configured" + (" (" + "; ".join(errors) + ")" if errors else "")
+        )
 
     def close(self) -> None:
         if self.backend:

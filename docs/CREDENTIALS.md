@@ -1,55 +1,52 @@
 # Credential handling
 
-The server supports two credential modes for IMAP, POP3, and SMTP.
+Outlook COM reuses the signed-in Windows profile; the server does not need or store
+its password. IMAP, POP3, and SMTP use either `env` or `keyring` credentials.
 
-## Windows Credential Manager (recommended)
+## Windows Credential Manager
 
-Set:
-
-```text
-OUTLOOK_EMAIL_CREDENTIAL_BACKEND=keyring
-OUTLOOK_EMAIL_CREDENTIAL_SERVICE=outlook-email-mcp
-```
-
-Store passwords interactively so they do not appear in shell history:
+Install the `windows` extra and set:
 
 ```powershell
-py -c "import getpass, keyring; u=input('Username: '); keyring.set_password('outlook-email-mcp', u, getpass.getpass('Password: '))"
+$env:OUTLOOK_EMAIL_CREDENTIAL_BACKEND = "keyring"
+$env:OUTLOOK_EMAIL_CREDENTIAL_SERVICE = "outlook-email-mcp"
+.\.venv\Scripts\python.exe -c "import getpass,keyring; u=input('Mailbox username: '); keyring.set_password('outlook-email-mcp',u,getpass.getpass('Password: '))"
 ```
 
-Use the exact same username in `IMAP_USERNAME`, `POP3_USERNAME`, or
-`SMTP_USERNAME`. The server requests the password from the local keyring when
-it starts. It never returns passwords through MCP tools and never includes
-them in status output or error messages.
+The username must exactly match `IMAP_USERNAME`, `POP3_USERNAME`, or `SMTP_USERNAME`.
+Use the same entry only when those services intentionally share a credential.
+Missing entries or keyring errors fail closed with generic diagnostics. Check that
+the `keyring` installation selects the intended OS credential provider; do not
+install plaintext fallback providers.
 
-## Environment mode
+## Protected environment
 
-`OUTLOOK_EMAIL_CREDENTIAL_BACKEND=env` reads `IMAP_PASSWORD`,
-`POP3_PASSWORD`, and `SMTP_PASSWORD`. This is supported for isolated local
-testing and container deployments with a protected secret manager, but process
-environment variables may be visible to privileged local processes. Never put
-these values in `.env.example`, client JSON, Git, ChatGPT, logs, screenshots,
-or support tickets.
+`OUTLOOK_EMAIL_CREDENTIAL_BACKEND=env` is the compatibility default. It reads
+`IMAP_PASSWORD`, `POP3_PASSWORD`, and `SMTP_PASSWORD`. Supply these from a protected
+process environment or secret manager. They can be inspected by privileged local
+processes; they are not encrypted merely because they are environment variables.
 
-## What is protected
+Never embed passwords/tokens in command arguments, client JSON, committed files,
+screenshots, issue reports, or chat. `.env.example` documents variable names only;
+the server does not load `.env` files automatically. Password/token fields are
+excluded from the Settings diagnostic representation and MCP status output.
 
-- Outlook/PST mode uses the signed-in Windows Outlook profile; this server does
-  not store Outlook passwords.
-- Keyring mode stores mailbox passwords through the operating system's secure
-  credential provider.
-- Status output includes hostnames and selected backend only, never passwords.
-- Logs go to stderr and redact application errors; protocol debug logging is not
-  enabled by default.
-- Tunnel credentials are owned by the tunnel provider and are not stored in
-  this repository.
+## HTTP bearer token
 
-## Rotation and removal
+HTTP/SSE requires `OUTLOOK_EMAIL_HTTP_TOKEN` separately from mailbox passwords.
+Generate a new random token for this server, pass it to the client through a
+protected secret setting, and rotate it if exposed. Do not reuse a mailbox password.
+HTTP clients send `Authorization: Bearer <token>` on every request.
 
-Rotate a mailbox password at the provider, then replace the keyring entry.
-Remove an entry after testing with:
+## Rotation
+
+Change mailbox passwords at the provider first, update the keyring/secret manager,
+and restart the server. Remove unused entries with an interactive local command:
 
 ```powershell
-py -c "import keyring; u=input('Username: '); keyring.delete_password('outlook-email-mcp', u)"
+.\.venv\Scripts\python.exe -c "import keyring; u=input('Mailbox username: '); keyring.delete_password('outlook-email-mcp',u)"
 ```
 
-Do not use the delete command until you have confirmed the username.
+Prefer provider-supported app passwords for accounts with MFA. OAuth token flows
+are not implemented by these mail backends; do not assume OAuth support from an
+email provider means this password-based client will work.

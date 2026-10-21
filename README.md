@@ -1,113 +1,175 @@
 # Outlook Email MCP
 
-Windows-first MCP server for bounded, non-destructive email access. It uses a
-single-threaded Outlook COM worker when Outlook is available, and supports
-IMAP/SMTP or POP3/SMTP over TLS for provider configurations that do not expose
-IMAP. POP3 is inbox-only and cannot store drafts.
+Windows-first MCP server for Classic Outlook, mounted PST stores, and TLS-protected
+IMAP/POP3 accounts. **Read-only mailbox access is the default.** Sending and saved
+drafts require separate opt-ins. Version 0.2.0 includes security-breaking changes;
+read [the migration guide](docs/MIGRATION-0.2.md) before upgrading.
 
-## Run
+## Install
+
+Use Python 3.11 or newer; Python 3.14 is the tested Windows baseline. Classic
+Outlook is required for COM/PST access. New Outlook does not expose this COM API.
 
 ```powershell
-py -m pip install -e ".[windows]"
-$env:OUTLOOK_EMAIL_BACKEND = "auto"
-outlook-email-mcp
+git clone https://github.com/iaminvester86/outlook-email-mcp.git
+cd outlook-email-mcp
+py -3.14 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[windows]"
 ```
 
-For a source checkout, the equivalent command is:
+For the audited Windows/Python 3.14 dependency snapshot, install
+`requirements/runtime-windows-py314.txt` first, then install the project with
+`pip install --no-deps -e .`. The snapshot is platform-specific; other platforms
+should resolve supported dependencies from `pyproject.toml` and run an audit.
+
+## Connect to Outlook/PST safely
+
+First discover available store IDs in your own local terminal:
 
 ```powershell
-py -3 -m pip install -e ".[test,windows]"
-py -3 -m outlook_email_mcp
+.\.venv\Scripts\python.exe -m outlook_email_mcp --list-outlook-stores
 ```
 
-The server speaks MCP over stdio and is intended to be launched by an MCP
-client. It will appear silent while waiting for protocol input; diagnostics go
-to stderr. See `examples/mcp-client.config.json` for a client configuration
-starting point.
-
-## ChatGPT Secure MCP Tunnel
-
-ChatGPT cannot launch this local Python process directly. For ChatGPT web,
-run the server in Streamable HTTP mode and expose only its loopback endpoint
-through OpenAI's Secure MCP Tunnel:
+Then allow only the stores you intend to expose. Copy exact IDs from that local
+output; separate multiple IDs with semicolons. Store names are not accepted as IDs.
 
 ```powershell
-$env:OUTLOOK_EMAIL_TRANSPORT = "streamable-http"
-$env:OUTLOOK_EMAIL_HTTP_HOST = "127.0.0.1"
-$env:OUTLOOK_EMAIL_HTTP_PORT = "8000"
-$env:OUTLOOK_EMAIL_HTTP_PATH = "/mcp"
-py -3 -m outlook_email_mcp --transport streamable-http --host 127.0.0.1 --port 8000
+$env:OUTLOOK_EMAIL_BACKEND = "outlook"
+$env:OUTLOOK_EMAIL_OUTLOOK_STORES = "outlook:store:PASTE_SELECTED_STORE_ID"
+.\.venv\Scripts\python.exe -m outlook_email_mcp
 ```
 
-In ChatGPT web, use **Plugins → + → Add custom MCP server**, choose **Tunnel**,
-select the Secure MCP Tunnel that targets this local server, review the
-discovered tools and permissions, then create the plugin. This requires a
-ChatGPT Business or Enterprise/Edu workspace with the required admin or RBAC
-permission. ChatGPT keeps a reviewed/frozen tool snapshot; refresh the app
-after changing tools.
+An empty allowlist exposes **no Outlook stores or messages**, even if the caller
+already knows an entry ID. The discovery command is local setup functionality;
+it is not an MCP tool. Open a PST in Outlook first, then explicitly allow its store.
+Use `list_folders` and pass the returned folder ID when reading a non-default store.
 
-The server intentionally binds to `127.0.0.1` by default. Do not change the
-host to `0.0.0.0` or expose port 8000 directly to the Internet. The tunnel is
-the reachability boundary. Secure MCP Tunnel setup is performed in OpenAI's
-tools; this repository does not contain tunnel credentials or a public relay.
+The server speaks MCP over stdio and waits silently for protocol input. Configure
+your MCP client with the absolute path to this project's `.venv\Scripts\python.exe`,
+arguments `-m outlook_email_mcp`, and your approved non-secret settings. See
+[the client template](examples/mcp-client.config.json). Diagnostics go to stderr.
 
-For IMAP/SMTP credentials, prefer Windows Credential Manager:
+## IMAP or POP3
+
+Set `OUTLOOK_EMAIL_BACKEND=imap` or `pop3`, the corresponding host and username,
+and a secure credential source. SMTP is optional for read-only use. All mail
+connections validate certificates and hostnames; plaintext modes are rejected.
 
 ```powershell
-py -3 -m pip install -e ".[windows]"
-python -c "import keyring; keyring.set_password('outlook-email-mcp', 'you@example.com', 'PASTE_LOCALLY_ONLY')"
+$env:OUTLOOK_EMAIL_BACKEND = "imap"
+$env:IMAP_HOST = "imap.example.test"
+$env:IMAP_USERNAME = "mailbox@example.test"
 $env:OUTLOOK_EMAIL_CREDENTIAL_BACKEND = "keyring"
 $env:OUTLOOK_EMAIL_CREDENTIAL_SERVICE = "outlook-email-mcp"
+.\.venv\Scripts\python.exe -c "import getpass,keyring; u=input('Mailbox username: '); keyring.set_password('outlook-email-mcp',u,getpass.getpass('Password: '))"
 ```
 
-Set the username in `IMAP_USERNAME` and `SMTP_USERNAME`; the passwords are
-looked up locally by username and are not placed in process environment
-variables. Never paste a real password into chat or commit it.
+Replace example addresses/hosts locally. For POP3 use `POP3_HOST`, `POP3_USERNAME`,
+and port 995. POP3 is inbox-only, has no reliable read/unread state, and cannot save
+drafts. IMAP defaults to port 993. SMTP uses STARTTLS on 587, or implicit TLS with
+`SMTP_SSL=true` and the provider's port (commonly 465). See
+[credentials](docs/CREDENTIALS.md) and [network setup](docs/NETWORK-SOLUTIONS.md).
 
-## Agent Plugin package
+`auto` selects Outlook first, then IMAP, then POP3. These can represent different
+accounts. Prefer an explicit backend and inspect `status` before reading or writing.
 
-The downloadable Agent Plugin package is under
-`plugin/outlook-email-mcp/`. It contains `plugin.json`, `mcp.json`, and the
-`outlook-email` skill. See `plugin/outlook-email-mcp/INSTALL.md` before
-installing it.
+## Drafts and sending
 
-The package uses local stdio because Outlook COM and PST access must run on the
-Windows desktop. Some hosted or organization plugin importers only import
-remote MCP servers and skills; they may report local stdio without installing
-it. In that case, use the desktop client's **Add workspace MCP** flow with the
-same command from `mcp.json`.
+`prepare_draft` only returns a validated preview. It does not save or send anything.
+To save drafts, explicitly set `OUTLOOK_EMAIL_ENABLE_DRAFTS=true` before starting
+the server. To enable sending, set `OUTLOOK_EMAIL_ENABLE_SEND=true`. Disabled
+write tools are not advertised. Outlook writes additionally require
+`OUTLOOK_EMAIL_OUTLOOK_SEND_ACCOUNT` to match one configured account whose delivery
+store is allowlisted. Network sending requires SMTP host, username, and credentials.
 
-For the IMAP fallback, configure `IMAP_HOST`, `IMAP_USERNAME`,
-`IMAP_PASSWORD`, `SMTP_HOST`, `SMTP_USERNAME`, and `SMTP_PASSWORD`. Ports are
-configurable with `IMAP_PORT` (default `993`) and `SMTP_PORT` (default `587`).
-IMAP TLS cannot be disabled. SMTP uses STARTTLS by default; set `SMTP_SSL=true`
-for implicit TLS instead.
+Every send requires **both** `confirm=true` and a fresh approval in a separate
+window on the server computer. The window shows the selected sender, every To/Cc/Bcc
+recipient, the complete subject/body, and attachment names, sizes, and SHA-256
+hashes. Cancel, timeout, or an unavailable desktop/Tkinter blocks the send. No
+environment flag, MCP parameter, or approval token disables this local approval.
 
-For POP3-only providers, set `OUTLOOK_EMAIL_BACKEND=pop3` and configure
-`POP3_HOST`, `POP3_PORT` (normally `995`), `POP3_USERNAME`, `SMTP_HOST`,
-`SMTP_USERNAME`, and the corresponding secure credential entries. POP3 uses TLS
-from connection start and supports inbox search, message retrieval, attachment
-metadata/export, and SMTP sending. It cannot list folders, preserve read/unread
-state, or save drafts; use Outlook or IMAP for those features.
+Attachment bytes are captured before review and those exact bytes are sent, even
+if the original file changes during approval. Approvals are never reused. Automated
+clients must not click the approval window on the user's behalf. This boundary
+assumes the server's OS account and desktop are trusted; it cannot protect against
+software that already has arbitrary shell or UI control under that same account.
 
-Attachment saves are disabled unless `OUTLOOK_EMAIL_SAVE_ROOTS` contains one or
-more allowed directories separated by the platform path separator. Results,
-bodies, and attachment sizes are bounded by `OUTLOOK_EMAIL_MAX_RESULTS`,
-`OUTLOOK_EMAIL_MAX_BODY_CHARS`, and `OUTLOOK_EMAIL_MAX_ATTACHMENT_BYTES`.
-Outbound attachments are separately disabled unless their source files are
-inside `OUTLOOK_EMAIL_ATTACHMENT_ROOTS`; existing files are never overwritten
-on export.
+## Attachments and limits
+
+Attachment exports are disabled until `OUTLOOK_EMAIL_SAVE_ROOTS` is configured.
+Outbound source files are separately disabled until `OUTLOOK_EMAIL_ATTACHMENT_ROOTS`
+is configured. Use dedicated directories, not your entire home folder or drive.
+Root lists use `;` on Windows and the platform path separator elsewhere. Exports
+reject traversal, unsafe filenames, and existing targets. Outlook downloads use a
+private random scratch directory; exported attachments are never executed.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `OUTLOOK_EMAIL_MAX_RESULTS` | 50 | Maximum search results |
+| `OUTLOOK_EMAIL_MAX_BODY_CHARS` | 20000 | Returned message body limit |
+| `OUTLOOK_EMAIL_MAX_ATTACHMENT_BYTES` | 26214400 | Each attachment limit |
+| `OUTLOOK_EMAIL_MAX_MESSAGE_BYTES` | 52428800 | Inbound message / outbound decoded payload limit |
+| `OUTLOOK_EMAIL_NETWORK_TIMEOUT` | 30 | Network timeout in seconds |
+| `OUTLOOK_EMAIL_APPROVAL_TIMEOUT` | 120 | Local send decision timeout in seconds |
+
+Large inbound messages are size-checked before retrieval. A hostile mail provider
+is still outside the trust boundary. Search results include bounded body text, so
+mail returned through MCP is visible to the client and any AI service it uses.
+
+## HTTP and tunnels
+
+Prefer local stdio. Optional HTTP/SSE listeners are loopback-only and require a
+random bearer token in `OUTLOOK_EMAIL_HTTP_TOKEN` (at least 32 printable ASCII
+characters). Missing, incorrect, or duplicate Authorization headers are rejected
+before MCP processing. Host and browser Origin checks also remain enabled.
+
+An external tunnel must preserve those controls and provide HTTPS and its own
+access policy. Never publish the listener directly. Clients that cannot supply
+the bearer header cannot use this HTTP configuration; use stdio instead. See
+[HTTP setup](docs/CHATGPT-TUNNEL.md). No hosted-client UI, plan eligibility, or
+tunnel compatibility is assumed by this repository.
 
 ## Tools
 
-For ChatGPT web, follow `docs/CHATGPT-TUNNEL.md`. ChatGPT cannot launch this
-local process directly; use the loopback Streamable HTTP mode through Secure
-MCP Tunnel. The server rejects non-loopback HTTP binds.
+Always available: `status`, `list_stores`, `list_folders`, `search`, `get_message`,
+`list_attachments`, `save_attachment`, `prepare_draft`. Conditional:
+`create_draft` and `send_email`. There are no delete/move tools, arbitrary COM
+commands, or arbitrary PST-opening tools. See [the tool reference](docs/TOOLS.md).
 
-The server exposes `status`, `list_stores`, `list_folders`, `search`,
-`get_message`, `list_attachments`, `save_attachment`, `prepare_draft`,
-`create_draft`, and `send_email`. `send_email` requires `confirm=true` in the
-same call. There are no delete or move operations.
+## Repository layout
 
-All logging is configured for stderr so stdout remains a clean MCP stdio
-transport.
+```text
+src/outlook_email_mcp/    Server, policies, local approval UI, and backends
+tests/                  Offline unit, protocol, authentication, and regression tests
+docs/                   Setup, threat model, migration, and validation report
+examples/               Credential-free client template
+plugin/outlook-email-mcp/ Portable plugin manifests and safe-use skill
+requirements/           Audited Windows/Python 3.14 dependency snapshots
+scripts/                Build and security-check helpers
+.github/workflows/      Tests, dependency audit, static checks, and secret scanning
+```
+
+Generated `build/`, `dist/`, bytecode, environment files, credentials, and mail
+exports are ignored. Release packages are built from source rather than committed
+as duplicate executable copies. The bundled plugin must use the interpreter where
+the server was installed; see [plugin installation](plugin/outlook-email-mcp/INSTALL.md).
+
+## Development and security checks
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[windows,test,dev]"
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m ruff check src tests scripts
+.\.venv\Scripts\python.exe -m bandit -r src
+.\.venv\Scripts\python.exe -m pip_audit --disable-pip --no-deps -r requirements/runtime-windows-py314.txt
+.\.venv\Scripts\python.exe scripts/run_gitleaks.py
+.\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe scripts/build_plugin.py
+```
+
+Security CI runs with read-only repository permissions and commit-pinned actions.
+Use [SECURITY.md](SECURITY.md) for reporting, [the threat model](docs/SECURITY.md)
+for trust boundaries, and [the validation report](docs/SECURITY-REVIEW.md) for tested
+behavior and remaining limitations. Automated checks do not certify a live mailbox
+configuration or replace deployment-specific review.

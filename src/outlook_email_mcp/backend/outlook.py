@@ -7,13 +7,16 @@ import os
 import queue
 import sys
 import threading
+import tempfile
+from pathlib import Path
 from email.utils import format_datetime
 from typing import Any, Callable, TypeVar
 
-from ..errors import BackendError, UnsupportedBackendError
+from ..errors import BackendError, UnsupportedBackendError, PolicyError
 from ..models import Attachment, Draft, Folder, Message, Store
 from ..policy import SafePathPolicy
 from ..query import parse_query
+from ..approval import snapshot_draft
 
 T = TypeVar("T")
 
@@ -40,11 +43,12 @@ class _ComWorker:
                 raise UnsupportedBackendError("Outlook COM is supported only on Windows")
             import pythoncom  # type: ignore
             import win32com.client  # type: ignore
+
             pythoncom.CoInitialize()
             initialized = True
             self._outlook = win32com.client.Dispatch("Outlook.Application")
             self._namespace = self._outlook.GetNamespace("MAPI")
-        except Exception as exc:  # startup errors become a safe capability result
+        except Exception:  # startup errors become a safe capability result
             if initialized and pythoncom is not None:
                 pythoncom.CoUninitialize()
             self._startup_error = UnsupportedBackendError("Outlook is unavailable; use the IMAP backend")
@@ -71,7 +75,9 @@ class _ComWorker:
         ok, value = result.get()
         if ok:
             return value
-        raise BackendError("Outlook operation failed") from value
+        if isinstance(value, PolicyError):
+            raise value from None
+        raise BackendError("Outlook operation failed; check Outlook before retrying a send") from None
 
     def close(self) -> None:
         if not self._stopped:
@@ -83,17 +89,34 @@ class _ComWorker:
 class OutlookBackend:
     name = "outlook"
 
-    def __init__(self, policy: SafePathPolicy, max_attachment_bytes: int = 25 * 1024 * 1024, max_body_chars: int = 20000) -> None:
+    def __init__(
+        self,
+        policy: SafePathPolicy,
+        max_attachment_bytes: int = 25 * 1024 * 1024,
+        max_body_chars: int = 20000,
+        allowed_stores: tuple[str, ...] = (),
+        send_account: str | None = None,
+        max_message_bytes: int = 50 * 1024 * 1024,
+    ) -> None:
         self.policy = policy
         self.max_attachment_bytes = max_attachment_bytes
         self.max_body_chars = max_body_chars
+        self.allowed_stores = frozenset(s.removeprefix("outlook:store:").casefold() for s in allowed_stores)
+        self.send_account = send_account
+        self.max_message_bytes = max_message_bytes
         self._worker = _ComWorker()
 
     def close(self) -> None:
         self._worker.close()
 
     def status(self) -> dict:
-        return {"backend": self.name, "available": True, "transport": "local Outlook COM"}
+        return {
+            "backend": self.name,
+            "available": True,
+            "transport": "local Outlook COM",
+            "store_allowlist_configured": bool(self.allowed_stores),
+            "send_account": self.send_account,
+        }
 
     @staticmethod
     def _store_id(store: Any) -> str:
@@ -105,37 +128,62 @@ class OutlookBackend:
 
     def list_stores(self) -> list[Store]:
         def run() -> list[Store]:
-            return [Store(self._store_id(s), str(s.Name), self.name) for s in self._worker._namespace.Folders]
+            return [
+                Store(self._store_id(s), str(s.Name), self.name)
+                for s in self._worker._namespace.Folders
+                if str(s.StoreID).casefold() in self.allowed_stores
+            ]
+
         return self._worker.call(run)
+
+    def discover_stores(self) -> list[Store]:
+        """Local setup command only; intentionally absent from the MCP tools."""
+        return self._worker.call(
+            lambda: [Store(self._store_id(s), str(s.Name), self.name) for s in self._worker._namespace.Folders]
+        )
+
+    def _require_store(self, store_id: str) -> None:
+        if str(store_id).casefold() not in self.allowed_stores:
+            raise PolicyError("Outlook store is not allowed; configure OUTLOOK_EMAIL_OUTLOOK_STORES locally")
 
     def list_folders(self, store_id: str | None = None) -> list[Folder]:
         def run() -> list[Folder]:
             output: list[Folder] = []
             for store in self._worker._namespace.Folders:
+                if str(store.StoreID).casefold() not in self.allowed_stores:
+                    continue
                 sid = self._store_id(store)
                 if store_id and store_id != sid:
                     continue
+
                 def walk(folder: Any, parent: str | None = None, prefix: str = "") -> None:
                     fid = self._folder_id(folder)
                     path = f"{prefix}/{folder.Name}" if prefix else str(folder.Name)
                     output.append(Folder(fid, str(folder.Name), sid, parent, path))
                     for child in folder.Folders:
                         walk(child, fid, path)
+
                 for root in store.Folders:
                     walk(root)
             return output
+
         return self._worker.call(run)
 
     def _folder(self, folder_id: str | None) -> Any:
         if not folder_id:
             # Outlook's built-in Inbox constant is 6 (OlDefaultFolders.olFolderInbox).
-            return self._worker._namespace.GetDefaultFolder(6)
+            folder = self._worker._namespace.GetDefaultFolder(6)
+            self._require_store(folder.StoreID)
+            return folder
         if not folder_id.startswith("outlook:folder:"):
             raise BackendError("invalid Outlook folder_id")
-        return self._worker._namespace.GetFolderFromID(folder_id.removeprefix("outlook:folder:"))
+        folder = self._worker._namespace.GetFolderFromID(folder_id.removeprefix("outlook:folder:"))
+        self._require_store(folder.StoreID)
+        return folder
 
     def search(self, query: str, folder_id: str | None, limit: int) -> list[Message]:
         parsed = parse_query(query)
+
         def run() -> list[Message]:
             folder = self._folder(folder_id)
             items = folder.Items
@@ -148,6 +196,7 @@ class OutlookBackend:
                 if parsed.matches(message):
                     found.append(message)
             return found
+
         return self._worker.call(run)
 
     def _message(self, item: Any, folder_id: str | None) -> Message:
@@ -170,13 +219,17 @@ class OutlookBackend:
                 elif recipient_type == 2:
                     cc_addresses.append(str(getattr(recipient, "Address", "")))
         return Message(
-            id=f"outlook:message:{item.EntryID}", subject=str(getattr(item, "Subject", "")),
+            id=f"outlook:message:{item.EntryID}",
+            subject=str(getattr(item, "Subject", "")),
             sender=str(getattr(item, "SenderEmailAddress", "") or getattr(item, "SenderName", "")),
             to=tuple(to_addresses),
             cc=tuple(cc_addresses),
-            received_at=received_at, body=str(getattr(item, "Body", ""))[: self.max_body_chars],
-            unread=bool(getattr(item, "UnRead", False)), has_attachments=count > 0,
-            folder_id=folder_id, preview=str(getattr(item, "Body", ""))[:300],
+            received_at=received_at,
+            body=str(getattr(item, "Body", ""))[: self.max_body_chars],
+            unread=bool(getattr(item, "UnRead", False)),
+            has_attachments=count > 0,
+            folder_id=folder_id,
+            preview=str(getattr(item, "Body", ""))[:300],
         )
 
     def _item(self, message_id: str, folder_id: str | None) -> tuple[Any, Any]:
@@ -184,7 +237,14 @@ class OutlookBackend:
             raise BackendError("invalid Outlook message_id")
         folder = self._folder(folder_id)
         store_id = getattr(folder, "StoreID", None)
-        item = self._worker._namespace.GetItemFromID(message_id.removeprefix("outlook:message:"), store_id) if store_id else self._worker._namespace.GetItemFromID(message_id.removeprefix("outlook:message:"))
+        item = (
+            self._worker._namespace.GetItemFromID(message_id.removeprefix("outlook:message:"), store_id)
+            if store_id
+            else self._worker._namespace.GetItemFromID(message_id.removeprefix("outlook:message:"))
+        )
+        self._require_store(item.Parent.StoreID)
+        if folder_id and str(item.Parent.EntryID) != str(folder.EntryID):
+            raise PolicyError("message does not belong to the requested folder")
         return item, folder
 
     def get_message(self, message_id: str, folder_id: str | None = None) -> Message:
@@ -193,10 +253,21 @@ class OutlookBackend:
     def list_attachments(self, message_id: str, folder_id: str | None = None) -> list[Attachment]:
         def run() -> list[Attachment]:
             item, _ = self._item(message_id, folder_id)
-            return [Attachment(str(i), str(item.Attachments.Item(i).FileName), str(getattr(item.Attachments.Item(i), "Type", "application/octet-stream")), int(getattr(item.Attachments.Item(i), "Size", 0) or 0)) for i in range(1, int(item.Attachments.Count) + 1)]
+            return [
+                Attachment(
+                    str(i),
+                    str(item.Attachments.Item(i).FileName),
+                    str(getattr(item.Attachments.Item(i), "Type", "application/octet-stream")),
+                    int(getattr(item.Attachments.Item(i), "Size", 0) or 0),
+                )
+                for i in range(1, int(item.Attachments.Count) + 1)
+            ]
+
         return self._worker.call(run)
 
-    def save_attachment(self, message_id: str, attachment_id: str, directory: str, folder_id: str | None = None) -> dict:
+    def save_attachment(
+        self, message_id: str, attachment_id: str, directory: str, folder_id: str | None = None
+    ) -> dict:
         def run() -> dict:
             item, _ = self._item(message_id, folder_id)
             attachment = item.Attachments.Item(int(attachment_id))
@@ -204,34 +275,76 @@ class OutlookBackend:
             if size > self.max_attachment_bytes:
                 raise BackendError("attachment exceeds configured safety limit")
             target = self.policy.target(directory, str(attachment.FileName))
-            temporary = target.with_name(target.name + ".outlook-download")
-            attachment.SaveAsFile(str(temporary))
-            try:
-                payload = temporary.read_bytes()
+            # A private, random directory prevents collisions with existing files.
+            with tempfile.TemporaryDirectory(prefix=".outlook-export-", dir=target.parent) as scratch:
+                temporary = Path(scratch) / "attachment"
+                attachment.SaveAsFile(str(temporary))
+                with temporary.open("rb") as stream:
+                    payload = stream.read(self.max_attachment_bytes + 1)
+                if len(payload) > self.max_attachment_bytes:
+                    raise BackendError("attachment exceeds configured safety limit")
                 self.policy.write_new_file(target, payload)
-            finally:
-                temporary.unlink(missing_ok=True)
             return {"path": str(target), "filename": str(attachment.FileName), "size": size}
+
         return self._worker.call(run)
 
     def create_draft(self, draft: Draft) -> dict:
         def run() -> dict:
-            item = self._worker._outlook.CreateItem(0)
-            item.To = ";".join(draft.to); item.CC = ";".join(draft.cc); item.BCC = ";".join(draft.bcc)
-            item.Subject = draft.subject; item.Body = draft.body
-            for path in draft.attachments:
-                item.Attachments.Add(os.fspath(self.policy.attachment(path, self.max_attachment_bytes)))
+            item = self._draft_item(draft)
             item.Save()
             return {"created": True, "id": f"outlook:message:{getattr(item, 'EntryID', '')}", "folder": "Drafts"}
+
         return self._worker.call(run)
+
+    def _account(self):
+        if not self.send_account:
+            raise PolicyError("set OUTLOOK_EMAIL_OUTLOOK_SEND_ACCOUNT before creating drafts or sending")
+        matches = [
+            a for a in self._worker._namespace.Accounts if str(a.SmtpAddress).casefold() == self.send_account.casefold()
+        ]
+        if len(matches) != 1:
+            raise PolicyError("configured Outlook sender account is unavailable or ambiguous")
+        account = matches[0]
+        self._require_store(account.DeliveryStore.StoreID)
+        return account
+
+    def send_identity(self) -> dict:
+        def run() -> dict:
+            account = self._account()
+            return {
+                "backend": self.name,
+                "account": str(account.SmtpAddress),
+                "store_id": str(account.DeliveryStore.StoreID),
+            }
+
+        return self._worker.call(run)
+
+    def _draft_item(self, draft: Draft):
+        account = self._account()
+        # Create in this account's Drafts store, never Outlook's default account.
+        item = account.DeliveryStore.GetDefaultFolder(16).Items.Add("IPM.Note")
+        item.SendUsingAccount = account
+        item.To = ";".join(draft.to)
+        item.CC = ";".join(draft.cc)
+        item.BCC = ";".join(draft.bcc)
+        item.Subject = draft.subject
+        item.Body = draft.body
+        if draft.payloads is None:
+            draft = snapshot_draft(draft, self.policy, self.max_attachment_bytes, self.max_message_bytes)
+        if draft.payloads:
+            with tempfile.TemporaryDirectory(prefix="outlook-send-") as scratch:
+                for index, payload in enumerate(draft.payloads):
+                    directory = Path(scratch) / str(index)
+                    directory.mkdir(mode=0o700)
+                    path = directory / self.policy.filename(payload.filename)
+                    self.policy.write_new_file(path, payload.data)
+                    item.Attachments.Add(os.fspath(path))
+        return item
 
     def send_email(self, draft: Draft) -> dict:
         def run() -> dict:
-            item = self._worker._outlook.CreateItem(0)
-            item.To = ";".join(draft.to); item.CC = ";".join(draft.cc); item.BCC = ";".join(draft.bcc)
-            item.Subject = draft.subject; item.Body = draft.body
-            for path in draft.attachments:
-                item.Attachments.Add(os.fspath(self.policy.attachment(path, self.max_attachment_bytes)))
+            item = self._draft_item(draft)
             item.Send()
             return {"sent": True, "recipients": list(draft.to)}
+
         return self._worker.call(run)

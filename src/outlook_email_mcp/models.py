@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from email.headerregistry import Address
+from email.utils import getaddresses
 from typing import Any
 
 MAX_STRING = 200_000
@@ -80,6 +82,12 @@ class Message:
 
 
 @dataclass(frozen=True)
+class AttachmentPayload:
+    filename: str
+    data: bytes = field(repr=False)
+
+
+@dataclass(frozen=True)
 class Draft:
     to: tuple[str, ...]
     subject: str
@@ -87,17 +95,49 @@ class Draft:
     cc: tuple[str, ...] = ()
     bcc: tuple[str, ...] = ()
     attachments: tuple[str, ...] = ()
+    payloads: tuple[AttachmentPayload, ...] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "to", _recipients(self.to))
-        object.__setattr__(self, "cc", _recipients(self.cc))
-        object.__setattr__(self, "bcc", _recipients(self.bcc))
+        if sum(len(v) for v in (self.to, self.cc, self.bcc)) > MAX_RECIPIENTS:
+            raise ValueError("too many recipients")
+        for value in (*self.to, *self.cc, *self.bcc):
+            if not isinstance(value, str) or len(value) > 320 or any(ord(c) < 32 or ord(c) == 127 for c in value):
+                raise ValueError("invalid recipient")
+            parsed = getaddresses([value])
+            if len(parsed) != 1 or "@" not in parsed[0][1]:
+                raise ValueError("each recipient must contain exactly one email address")
+            try:
+                Address(addr_spec=parsed[0][1])
+            except (ValueError, IndexError) as exc:
+                raise ValueError("invalid recipient address") from exc
+        if (
+            not isinstance(self.subject, str)
+            or len(self.subject) > 10_000
+            or any(ord(c) < 32 or ord(c) == 127 for c in self.subject)
+        ):
+            raise ValueError("invalid subject")
+        if not isinstance(self.body, str) or len(self.body) > MAX_STRING:
+            raise ValueError("draft body exceeds the safety limit")
+        if len(self.attachments) > MAX_ATTACHMENTS or any(
+            not isinstance(p, str) or len(p) > 4_000 for p in self.attachments
+        ):
+            raise ValueError("invalid attachment list")
+        object.__setattr__(self, "to", tuple(getaddresses([v])[0][1] for v in self.to))
+        object.__setattr__(self, "cc", tuple(getaddresses([v])[0][1] for v in self.cc))
+        object.__setattr__(self, "bcc", tuple(getaddresses([v])[0][1] for v in self.bcc))
         object.__setattr__(self, "subject", bounded(self.subject, 10_000))
         object.__setattr__(self, "body", bounded(self.body))
         object.__setattr__(self, "attachments", tuple(bounded(p, 4_000) for p in self.attachments)[:MAX_ATTACHMENTS])
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return {
+            "to": self.to,
+            "subject": self.subject,
+            "body": self.body,
+            "cc": self.cc,
+            "bcc": self.bcc,
+            "attachments": self.attachments,
+        }
 
 
 def draft_from_dict(data: dict[str, Any]) -> Draft:
@@ -117,4 +157,6 @@ def draft_from_dict(data: dict[str, Any]) -> Draft:
         attachments = (attachments,)
     if not to:
         raise ValueError("draft requires at least one recipient")
+    if not all(isinstance(value, (list, tuple)) for value in (to, cc, bcc, attachments)):
+        raise ValueError("recipients and attachments must be strings or arrays")
     return Draft(tuple(to), data.get("subject", ""), data.get("body", ""), tuple(cc), tuple(bcc), tuple(attachments))

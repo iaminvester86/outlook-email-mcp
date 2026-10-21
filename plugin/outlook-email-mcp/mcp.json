@@ -3,9 +3,15 @@
   "mcpServers": {
     "outlook-email": {
       "type": "stdio",
-      "command": "py",
-      "args": ["-3", "-m", "outlook_email_mcp"],
-      "cwd": "${PLUGIN_DATA}/outlook-email-mcp"
+      "command": "python",
+      "args": [
+        "-m",
+        "outlook_email_mcp"
+      ],
+      "env": {
+        "OUTLOOK_EMAIL_ENABLE_DRAFTS": "false",
+        "OUTLOOK_EMAIL_ENABLE_SEND": "false"
+      }
     }
   }
 }

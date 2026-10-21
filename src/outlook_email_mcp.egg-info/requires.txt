@@ -1,10 +1,18 @@
-mcp<2,>=1.0
+mcp<2,>=1.30.0
+
+[dev]
+bandit>=1.9.4
+pip-audit>=2.10.1
+ruff>=0.17.1
+build>=1.4
 
 [test]
-pytest>=7
+pytest>=8
+pytest-asyncio>=1
+pyyaml>=6
 
 [windows]
 
 [windows:platform_system == "Windows"]
-pywin32>=306
-keyring>=25
+pywin32>=311
+keyring>=25.7

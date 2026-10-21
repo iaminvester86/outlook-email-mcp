@@ -1,0 +1,213 @@
+* Getting build dependencies for sdist...
+running egg_info
+creating src\outlook_email_mcp.egg-info
+writing src\outlook_email_mcp.egg-info\PKG-INFO
+writing dependency_links to src\outlook_email_mcp.egg-info\dependency_links.txt
+writing entry points to src\outlook_email_mcp.egg-info\entry_points.txt
+writing requirements to src\outlook_email_mcp.egg-info\requires.txt
+writing top-level names to src\outlook_email_mcp.egg-info\top_level.txt
+writing manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+reading manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+warning: no previously-included files matching '*.py[cod]' found anywhere in distribution
+no previously-included directories found matching 'build'
+no previously-included directories found matching 'dist'
+no previously-included directories found matching '.venv'
+adding license file 'LICENSE'
+writing manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+* Building sdist...
+running sdist
+running egg_info
+writing src\outlook_email_mcp.egg-info\PKG-INFO
+writing dependency_links to src\outlook_email_mcp.egg-info\dependency_links.txt
+writing entry points to src\outlook_email_mcp.egg-info\entry_points.txt
+writing requirements to src\outlook_email_mcp.egg-info\requires.txt
+writing top-level names to src\outlook_email_mcp.egg-info\top_level.txt
+reading manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+warning: no previously-included files matching '*.py[cod]' found anywhere in distribution
+no previously-included directories found matching 'build'
+no previously-included directories found matching 'dist'
+no previously-included directories found matching '.venv'
+adding license file 'LICENSE'
+writing manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+running check
+creating outlook_email_mcp-0.2.0
+creating outlook_email_mcp-0.2.0\.github
+creating outlook_email_mcp-0.2.0\.github\workflows
+creating outlook_email_mcp-0.2.0\docs
+creating outlook_email_mcp-0.2.0\examples
+creating outlook_email_mcp-0.2.0\plugin\outlook-email-mcp
+creating outlook_email_mcp-0.2.0\plugin\outlook-email-mcp\skills\outlook-email
+creating outlook_email_mcp-0.2.0\requirements
+creating outlook_email_mcp-0.2.0\scripts
+creating outlook_email_mcp-0.2.0\src\outlook_email_mcp
+creating outlook_email_mcp-0.2.0\src\outlook_email_mcp.egg-info
+creating outlook_email_mcp-0.2.0\src\outlook_email_mcp\backend
+creating outlook_email_mcp-0.2.0\tests
+copying files to outlook_email_mcp-0.2.0...
+copying .env.example -> outlook_email_mcp-0.2.0
+copying .gitattributes -> outlook_email_mcp-0.2.0
+copying .gitignore -> outlook_email_mcp-0.2.0
+copying .gitleaks.toml -> outlook_email_mcp-0.2.0
+copying CHANGELOG.md -> outlook_email_mcp-0.2.0
+copying LICENSE -> outlook_email_mcp-0.2.0
+copying MANIFEST.in -> outlook_email_mcp-0.2.0
+copying README.md -> outlook_email_mcp-0.2.0
+copying SECURITY.md -> outlook_email_mcp-0.2.0
+copying pyproject.toml -> outlook_email_mcp-0.2.0
+copying .github\dependabot.yml -> outlook_email_mcp-0.2.0\.github
+copying .github\workflows\security.yml -> outlook_email_mcp-0.2.0\.github\workflows
+copying docs\CHATGPT-TUNNEL.md -> outlook_email_mcp-0.2.0\docs
+copying docs\CREDENTIALS.md -> outlook_email_mcp-0.2.0\docs
+copying docs\MIGRATION-0.2.md -> outlook_email_mcp-0.2.0\docs
+copying docs\NETWORK-SOLUTIONS.md -> outlook_email_mcp-0.2.0\docs
+copying docs\OUTLOOK-SETUP.md -> outlook_email_mcp-0.2.0\docs
+copying docs\SECURITY-REVIEW.md -> outlook_email_mcp-0.2.0\docs
+copying docs\SECURITY.md -> outlook_email_mcp-0.2.0\docs
+copying docs\TOOLS.md -> outlook_email_mcp-0.2.0\docs
+copying examples\mcp-client.config.json -> outlook_email_mcp-0.2.0\examples
+copying plugin\outlook-email-mcp\INSTALL.md -> outlook_email_mcp-0.2.0\plugin\outlook-email-mcp
+copying plugin\outlook-email-mcp\mcp.json -> outlook_email_mcp-0.2.0\plugin\outlook-email-mcp
+copying plugin\outlook-email-mcp\plugin.json -> outlook_email_mcp-0.2.0\plugin\outlook-email-mcp
+copying plugin\outlook-email-mcp\skills\outlook-email\SKILL.md -> outlook_email_mcp-0.2.0\plugin\outlook-email-mcp\skills\outlook-email
+copying requirements\development-windows-py314.txt -> outlook_email_mcp-0.2.0\requirements
+copying requirements\runtime-windows-py314.txt -> outlook_email_mcp-0.2.0\requirements
+copying scripts\build_plugin.py -> outlook_email_mcp-0.2.0\scripts
+copying scripts\run_gitleaks.py -> outlook_email_mcp-0.2.0\scripts
+copying src\outlook_email_mcp\__init__.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\__main__.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\approval.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\config.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\errors.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\http_auth.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\models.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\policy.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\query.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp\server.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp
+copying src\outlook_email_mcp.egg-info\PKG-INFO -> outlook_email_mcp-0.2.0\src\outlook_email_mcp.egg-info
+copying src\outlook_email_mcp.egg-info\SOURCES.txt -> outlook_email_mcp-0.2.0\src\outlook_email_mcp.egg-info
+copying src\outlook_email_mcp.egg-info\dependency_links.txt -> outlook_email_mcp-0.2.0\src\outlook_email_mcp.egg-info
+copying src\outlook_email_mcp.egg-info\entry_points.txt -> outlook_email_mcp-0.2.0\src\outlook_email_mcp.egg-info
+copying src\outlook_email_mcp.egg-info\requires.txt -> outlook_email_mcp-0.2.0\src\outlook_email_mcp.egg-info
+copying src\outlook_email_mcp.egg-info\top_level.txt -> outlook_email_mcp-0.2.0\src\outlook_email_mcp.egg-info
+copying src\outlook_email_mcp\backend\__init__.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\base.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\factory.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\imap.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\outlook.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\pop3.py -> outlook_email_mcp-0.2.0\src\outlook_email_mcp\backend
+copying tests\test_config.py -> outlook_email_mcp-0.2.0\tests
+copying tests\test_http_security.py -> outlook_email_mcp-0.2.0\tests
+copying tests\test_models_query.py -> outlook_email_mcp-0.2.0\tests
+copying tests\test_outlook_security.py -> outlook_email_mcp-0.2.0\tests
+copying tests\test_package.py -> outlook_email_mcp-0.2.0\tests
+copying tests\test_policy.py -> outlook_email_mcp-0.2.0\tests
+copying tests\test_security.py -> outlook_email_mcp-0.2.0\tests
+copying tests\test_server_guards.py -> outlook_email_mcp-0.2.0\tests
+Writing outlook_email_mcp-0.2.0\setup.cfg
+Creating tar archive
+removing 'outlook_email_mcp-0.2.0' (and everything under it)
+* Building wheel from sdist
+* Getting build dependencies for wheel...
+running egg_info
+writing src\outlook_email_mcp.egg-info\PKG-INFO
+writing dependency_links to src\outlook_email_mcp.egg-info\dependency_links.txt
+writing entry points to src\outlook_email_mcp.egg-info\entry_points.txt
+writing requirements to src\outlook_email_mcp.egg-info\requires.txt
+writing top-level names to src\outlook_email_mcp.egg-info\top_level.txt
+reading manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+warning: no previously-included files matching '*.py[cod]' found anywhere in distribution
+no previously-included directories found matching 'build'
+no previously-included directories found matching 'dist'
+no previously-included directories found matching '.venv'
+adding license file 'LICENSE'
+writing manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+* Building wheel...
+running bdist_wheel
+running build
+running build_py
+creating build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\approval.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\config.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\errors.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\http_auth.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\models.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\policy.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\query.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\server.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\__init__.py -> build\lib\outlook_email_mcp
+copying src\outlook_email_mcp\__main__.py -> build\lib\outlook_email_mcp
+creating build\lib\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\base.py -> build\lib\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\factory.py -> build\lib\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\imap.py -> build\lib\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\outlook.py -> build\lib\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\pop3.py -> build\lib\outlook_email_mcp\backend
+copying src\outlook_email_mcp\backend\__init__.py -> build\lib\outlook_email_mcp\backend
+running egg_info
+writing src\outlook_email_mcp.egg-info\PKG-INFO
+writing dependency_links to src\outlook_email_mcp.egg-info\dependency_links.txt
+writing entry points to src\outlook_email_mcp.egg-info\entry_points.txt
+writing requirements to src\outlook_email_mcp.egg-info\requires.txt
+writing top-level names to src\outlook_email_mcp.egg-info\top_level.txt
+reading manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+warning: no previously-included files matching '*.py[cod]' found anywhere in distribution
+no previously-included directories found matching 'build'
+no previously-included directories found matching 'dist'
+no previously-included directories found matching '.venv'
+adding license file 'LICENSE'
+writing manifest file 'src\outlook_email_mcp.egg-info\SOURCES.txt'
+installing to build\bdist.win-amd64\wheel
+running install
+running install_lib
+creating build\bdist.win-amd64\wheel
+creating build\bdist.win-amd64\wheel\outlook_email_mcp
+copying build\lib\outlook_email_mcp\approval.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+creating build\bdist.win-amd64\wheel\outlook_email_mcp\backend
+copying build\lib\outlook_email_mcp\backend\base.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp\backend
+copying build\lib\outlook_email_mcp\backend\factory.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp\backend
+copying build\lib\outlook_email_mcp\backend\imap.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp\backend
+copying build\lib\outlook_email_mcp\backend\outlook.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp\backend
+copying build\lib\outlook_email_mcp\backend\pop3.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp\backend
+copying build\lib\outlook_email_mcp\backend\__init__.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp\backend
+copying build\lib\outlook_email_mcp\config.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\errors.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\http_auth.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\models.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\policy.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\query.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\server.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\__init__.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+copying build\lib\outlook_email_mcp\__main__.py -> build\bdist.win-amd64\wheel\.\outlook_email_mcp
+running install_egg_info
+Copying src\outlook_email_mcp.egg-info to build\bdist.win-amd64\wheel\.\outlook_email_mcp-0.2.0-py3.14.egg-info
+running install_scripts
+creating build\bdist.win-amd64\wheel\outlook_email_mcp-0.2.0.dist-info\WHEEL
+creating 'C:\\Users\\MyPC\\Downloads\\MCP\\outlook-email-mcp\\dist\\.tmp-uzksjqyc\\outlook_email_mcp-0.2.0-py3-none-any.whl' and adding 'build\\bdist.win-amd64\\wheel' to it
+adding 'outlook_email_mcp/__init__.py'
+adding 'outlook_email_mcp/__main__.py'
+adding 'outlook_email_mcp/approval.py'
+adding 'outlook_email_mcp/config.py'
+adding 'outlook_email_mcp/errors.py'
+adding 'outlook_email_mcp/http_auth.py'
+adding 'outlook_email_mcp/models.py'
+adding 'outlook_email_mcp/policy.py'
+adding 'outlook_email_mcp/query.py'
+adding 'outlook_email_mcp/server.py'
+adding 'outlook_email_mcp/backend/__init__.py'
+adding 'outlook_email_mcp/backend/base.py'
+adding 'outlook_email_mcp/backend/factory.py'
+adding 'outlook_email_mcp/backend/imap.py'
+adding 'outlook_email_mcp/backend/outlook.py'
+adding 'outlook_email_mcp/backend/pop3.py'
+adding 'outlook_email_mcp-0.2.0.dist-info/licenses/LICENSE'
+adding 'outlook_email_mcp-0.2.0.dist-info/METADATA'
+adding 'outlook_email_mcp-0.2.0.dist-info/WHEEL'
+adding 'outlook_email_mcp-0.2.0.dist-info/entry_points.txt'
+adding 'outlook_email_mcp-0.2.0.dist-info/top_level.txt'
+adding 'outlook_email_mcp-0.2.0.dist-info/RECORD'
+removing build\bdist.win-amd64\wheel
+Successfully built outlook_email_mcp-0.2.0.tar.gz and outlook_email_mcp-0.2.0-py3-none-any.whl

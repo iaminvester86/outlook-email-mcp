@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path
 
 from .errors import PolicyError
 
 
 class SafePathPolicy:
-    def __init__(self, roots: tuple[Path, ...] | list[Path] = (), attachment_roots: tuple[Path, ...] | list[Path] = ()) -> None:
+    def __init__(
+        self, roots: tuple[Path, ...] | list[Path] = (), attachment_roots: tuple[Path, ...] | list[Path] = ()
+    ) -> None:
         self.roots = tuple(Path(root).expanduser().resolve() for root in roots)
         self.attachment_roots = tuple(Path(root).expanduser().resolve() for root in attachment_roots)
 
@@ -38,15 +41,40 @@ class SafePathPolicy:
             raise PolicyError("invalid attachment filename")
         if Path(name).name != name or "/" in name or "\\" in name:
             raise PolicyError("attachment filename must not contain path separators")
-        if ":" in name or any(ord(char) < 32 for char in name):
+        if (
+            any(c in name for c in ':<>"|?*')
+            or name != name.rstrip(" .")
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
+        ):
             raise PolicyError("attachment filename contains a reserved character")
         if name.rstrip(" .").split(".", 1)[0].upper() in {
-            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
-            "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2",
-            "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
+            "COM1",
+            "COM2",
+            "COM3",
+            "COM4",
+            "COM5",
+            "COM6",
+            "COM7",
+            "COM8",
+            "COM9",
+            "LPT1",
+            "LPT2",
+            "LPT3",
+            "LPT4",
+            "LPT5",
+            "LPT6",
+            "LPT7",
+            "LPT8",
+            "LPT9",
         }:
             raise PolicyError("attachment filename is reserved on Windows")
-        return name[:255]
+        if len(name) > 240:
+            raise PolicyError("attachment filename is too long")
+        return name
 
     def attachment(self, requested: str | os.PathLike[str], max_bytes: int) -> Path:
         if not self.attachment_roots:
@@ -57,6 +85,26 @@ class SafePathPolicy:
         if path.stat().st_size > max_bytes:
             raise PolicyError("attachment exceeds configured safety limit")
         return path
+
+    def read_attachment(self, requested: str, max_bytes: int) -> tuple[str, bytes]:
+        """Read once, then approve and send these exact bytes."""
+        path = self.attachment(requested, max_bytes)
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        with os.fdopen(descriptor, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size > max_bytes:
+                raise PolicyError("invalid attachment file or size")
+            # Detect replacement of the resolved path between validation and open.
+            current = path.stat()
+            if (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
+                raise PolicyError("attachment changed during validation")
+            if not any(self._inside(path.resolve(strict=True), root) for root in self.attachment_roots):
+                raise PolicyError("attachment escaped its allowed root")
+            data = stream.read(max_bytes + 1)
+        if len(data) > max_bytes:
+            raise PolicyError("attachment exceeds configured safety limit")
+        return self.filename(path.name), data
 
     def target(self, directory: str | os.PathLike[str], filename: str) -> Path:
         directory_path = self.resolve_save_path(directory)

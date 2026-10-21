@@ -1,26 +1,20 @@
 {
   "mcpServers": {
     "outlook-email": {
-      "command": "python",
+      "command": "C:\\Path\\To\\outlook-email-mcp\\.venv\\Scripts\\python.exe",
       "args": [
         "-m",
         "outlook_email_mcp"
       ],
       "env": {
-        "OUTLOOK_EMAIL_BACKEND": "auto",
+        "OUTLOOK_EMAIL_BACKEND": "outlook",
+        "OUTLOOK_EMAIL_OUTLOOK_STORES": "",
+        "OUTLOOK_EMAIL_ENABLE_DRAFTS": "false",
+        "OUTLOOK_EMAIL_ENABLE_SEND": "false",
         "OUTLOOK_EMAIL_CREDENTIAL_BACKEND": "keyring",
         "OUTLOOK_EMAIL_CREDENTIAL_SERVICE": "outlook-email-mcp",
-        "IMAP_HOST": "",
-        "IMAP_PORT": "993",
-        "IMAP_USERNAME": "",
-        "POP3_HOST": "",
-        "POP3_PORT": "995",
-        "POP3_USERNAME": "",
-        "SMTP_HOST": "",
-        "SMTP_PORT": "587",
-        "SMTP_USERNAME": "",
-        "SMTP_FROM": "",
-        "OUTLOOK_EMAIL_SAVE_ROOTS": "C:\\Users\\YourWindowsUser\\Downloads\\EmailExports"
+        "OUTLOOK_EMAIL_SAVE_ROOTS": "",
+        "OUTLOOK_EMAIL_ATTACHMENT_ROOTS": ""
       }
     }
   }

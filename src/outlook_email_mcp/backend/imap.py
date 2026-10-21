@@ -6,7 +6,7 @@ import email
 import imaplib
 import logging
 import mimetypes
-import os
+import re
 import smtplib
 import ssl
 import time
@@ -14,14 +14,13 @@ from email import policy as email_policy
 from email.message import EmailMessage
 from email.parser import BytesParser
 from email.utils import formatdate, getaddresses, parsedate_to_datetime
-from pathlib import Path
-from typing import Any
 
 from ..config import Settings
 from ..errors import BackendError, ConfigurationError
 from ..models import Attachment, Draft, Folder, Message, Store
 from ..policy import SafePathPolicy
 from ..query import parse_query
+from ..approval import snapshot_draft
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +42,13 @@ class ImapBackend:
     def __init__(self, settings: Settings, policy: SafePathPolicy) -> None:
         if not settings.imap_configured:
             raise ConfigurationError("IMAP_HOST, IMAP_USERNAME, and IMAP_PASSWORD are required")
-        if not settings.smtp_configured:
+        if settings.enable_send and not settings.smtp_configured:
             raise ConfigurationError("SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD are required")
         settings.validate()
         self.settings = settings
         self.policy = policy
         self._imap_password = self._secret("IMAP_PASSWORD")
-        self._smtp_password = self._secret("SMTP_PASSWORD")
+        self._smtp_password = self._secret("SMTP_PASSWORD") if settings.smtp_configured else None
 
     def _secret(self, name: str) -> str | None:
         if self.settings.credential_backend == "env":
@@ -59,7 +58,13 @@ class ImapBackend:
         except ImportError as exc:
             raise ConfigurationError("install the windows extra to use keyring credentials") from exc
         username = self.settings.imap_username if name.startswith("IMAP") else self.settings.smtp_username
-        return keyring.get_password(self.settings.credential_service or "outlook-email-mcp", username or "")
+        try:
+            value = keyring.get_password(self.settings.credential_service or "outlook-email-mcp", username or "")
+        except Exception:
+            raise ConfigurationError("credential store lookup failed") from None
+        if not value:
+            raise ConfigurationError("required credential is missing from the credential store")
+        return value
 
     def close(self) -> None:
         return None
@@ -75,11 +80,16 @@ class ImapBackend:
 
     def _connect(self) -> imaplib.IMAP4_SSL:
         try:
-            client = imaplib.IMAP4_SSL(self.settings.imap_host, self.settings.imap_port, timeout=self.settings.network_timeout, ssl_context=ssl.create_default_context())
+            client = imaplib.IMAP4_SSL(
+                self.settings.imap_host,
+                self.settings.imap_port,
+                timeout=self.settings.network_timeout,
+                ssl_context=ssl.create_default_context(),
+            )
             client.login(self.settings.imap_username or "", self._imap_password or "")
             return client
-        except Exception as exc:
-            raise BackendError("IMAP connection or authentication failed") from exc
+        except Exception:
+            raise BackendError("IMAP connection or authentication failed") from None
 
     @staticmethod
     def _folder_id(name: str) -> str:
@@ -93,7 +103,7 @@ class ImapBackend:
         if not folder_id.startswith(prefix):
             raise BackendError("invalid IMAP folder_id")
         try:
-            return bytes.fromhex(folder_id[len(prefix):]).decode("utf-8")
+            return bytes.fromhex(folder_id[len(prefix) :]).decode("utf-8")
         except ValueError as exc:
             raise BackendError("invalid IMAP folder_id") from exc
 
@@ -102,7 +112,7 @@ class ImapBackend:
         try:
             client.logout()
         except Exception:
-            logger.debug("IMAP logout failed", exc_info=True)
+            logger.debug("IMAP logout failed")
 
     def list_stores(self) -> list[Store]:
         return [Store("imap:store:account", self.settings.imap_username or "IMAP account", self.name)]
@@ -120,7 +130,9 @@ class ImapBackend:
                 text = row.decode("utf-8", "replace") if isinstance(row, bytes) else str(row)
                 name = text.rsplit(' "', 1)[-1].strip('"')
                 if name:
-                    result.append(Folder(self._folder_id(name), name.rsplit("/", 1)[-1], "imap:store:account", path=name))
+                    result.append(
+                        Folder(self._folder_id(name), name.rsplit("/", 1)[-1], "imap:store:account", path=name)
+                    )
             return result
         finally:
             self._logout(client)
@@ -131,6 +143,14 @@ class ImapBackend:
         if typ != "OK":
             raise BackendError("IMAP mailbox selection failed")
         return folder
+
+    @staticmethod
+    def _uidvalidity(client: imaplib.IMAP4_SSL) -> str:
+        _, data = client.response("UIDVALIDITY")
+        value = data[0].decode("ascii") if data and isinstance(data[0], bytes) else ""
+        if not value.isdigit() or int(value) < 1:
+            raise BackendError("IMAP mailbox UIDVALIDITY is unavailable")
+        return value
 
     def _criteria(self, query: str) -> list[str]:
         parsed = parse_query(query)
@@ -172,7 +192,21 @@ class ImapBackend:
         uid_text = uid.decode("ascii") if isinstance(uid, bytes) else str(uid)
         if not uid_text.isdigit():
             raise BackendError("invalid IMAP message identifier")
-        typ, data = client.uid("FETCH", uid, "(RFC822)")
+        typ, sizes = client.uid("FETCH", uid, "(RFC822.SIZE)")
+        size = next(
+            (
+                match
+                for row in sizes or ()
+                if isinstance(row, bytes)
+                if (match := re.search(rb"RFC822\.SIZE\s+(\d+)", row))
+            ),
+            None,
+        )
+        if typ != "OK" or size is None:
+            raise BackendError("IMAP message size unavailable")
+        if int(size.group(1)) > self.settings.max_message_bytes:
+            raise BackendError("message exceeds configured safety limit")
+        typ, data = client.uid("FETCH", uid, f"(BODY.PEEK[]<0.{self.settings.max_message_bytes + 1}>)")
         if typ != "OK" or not data:
             raise BackendError("IMAP message fetch failed")
         for item in data:
@@ -194,10 +228,17 @@ class ImapBackend:
             received = date_value
         uid_text = uid.decode() if isinstance(uid, bytes) else str(uid)
         return Message(
-            id=f"imap:message:{self._folder_id(folder)}:{uid_text}", subject=_decode(parsed.get("Subject")),
-            sender=_decode(parsed.get("From")), to=tuple(addr for _, addr in getaddresses(parsed.get_all("To", []))),
-            cc=tuple(addr for _, addr in getaddresses(parsed.get_all("Cc", []))), received_at=received,
-            body=body, unread=False, has_attachments=bool(attachments), folder_id=self._folder_id(folder), preview=body[:300],
+            id=f"imap:message:{self._folder_id(folder)}:{self._uidvalidity(client)}:{uid_text}",
+            subject=_decode(parsed.get("Subject")),
+            sender=_decode(parsed.get("From")),
+            to=tuple(addr for _, addr in getaddresses(parsed.get_all("To", []))),
+            cc=tuple(addr for _, addr in getaddresses(parsed.get_all("Cc", []))),
+            received_at=received,
+            body=body[: self.settings.max_body_chars],
+            unread=False,
+            has_attachments=bool(attachments),
+            folder_id=self._folder_id(folder),
+            preview=body[:300],
         )
 
     @staticmethod
@@ -219,18 +260,23 @@ class ImapBackend:
                 result.append(Attachment(str(index), _decode(filename), part.get_content_type(), len(payload)))
         return result
 
-    def _resolve_message(self, client: imaplib.IMAP4_SSL, message_id: str, folder_id: str | None) -> tuple[bytes, str, email.message.Message]:
+    def _resolve_message(
+        self, client: imaplib.IMAP4_SSL, message_id: str, folder_id: str | None
+    ) -> tuple[bytes, str, email.message.Message]:
         prefix = "imap:message:"
         if not message_id.startswith(prefix):
             raise BackendError("invalid IMAP message_id")
-        rest = message_id[len(prefix):]
-        encoded_folder, _, uid = rest.rpartition(":")
-        if not uid.isdigit():
+        rest = message_id[len(prefix) :]
+        folder_and_validity, _, uid = rest.rpartition(":")
+        encoded_folder, _, validity = folder_and_validity.rpartition(":")
+        if not uid.isdigit() or not validity.isdigit():
             raise BackendError("invalid IMAP message identifier")
         folder = self._folder_name(encoded_folder, self.settings.default_mailbox)
         if folder_id and self._folder_name(folder_id, folder) != folder:
             raise BackendError("message does not belong to folder")
         self._select(client, self._folder_id(folder))
+        if self._uidvalidity(client) != validity:
+            raise BackendError("IMAP mailbox identity changed; search again")
         raw = self._fetch_raw(client, uid.encode())
         return uid.encode(), folder, BytesParser(policy=email_policy.default).parsebytes(raw)
 
@@ -239,7 +285,19 @@ class ImapBackend:
         try:
             uid, folder, parsed = self._resolve_message(client, message_id, folder_id)
             body = self._body(parsed)
-            return Message(message_id, _decode(parsed.get("Subject")), _decode(parsed.get("From")), tuple(a for _, a in getaddresses(parsed.get_all("To", []))), tuple(a for _, a in getaddresses(parsed.get_all("Cc", []))), parsed.get("Date"), body, False, bool(self._attachments(parsed)), self._folder_id(folder), body[:300])
+            return Message(
+                message_id,
+                _decode(parsed.get("Subject")),
+                _decode(parsed.get("From")),
+                tuple(a for _, a in getaddresses(parsed.get_all("To", []))),
+                tuple(a for _, a in getaddresses(parsed.get_all("Cc", []))),
+                parsed.get("Date"),
+                body[: self.settings.max_body_chars],
+                False,
+                bool(self._attachments(parsed)),
+                self._folder_id(folder),
+                body[:300],
+            )
         finally:
             self._logout(client)
 
@@ -251,7 +309,9 @@ class ImapBackend:
         finally:
             self._logout(client)
 
-    def save_attachment(self, message_id: str, attachment_id: str, directory: str, folder_id: str | None = None) -> dict:
+    def save_attachment(
+        self, message_id: str, attachment_id: str, directory: str, folder_id: str | None = None
+    ) -> dict:
         client = self._connect()
         try:
             _, _, parsed = self._resolve_message(client, message_id, folder_id)
@@ -270,25 +330,41 @@ class ImapBackend:
             self._logout(client)
 
     def _message_for_draft(self, draft: Draft) -> EmailMessage:
+        if draft.payloads is None:
+            draft = snapshot_draft(
+                draft, self.policy, self.settings.max_attachment_bytes, self.settings.max_message_bytes
+            )
         message = EmailMessage()
-        message["From"] = self.settings.smtp_from or self.settings.smtp_username or ""
+        message["From"] = self.settings.smtp_from or self.settings.smtp_username or self.settings.imap_username or ""
         message["To"] = ", ".join(draft.to)
         if draft.cc:
             message["Cc"] = ", ".join(draft.cc)
         message["Subject"] = draft.subject
         message["Date"] = formatdate(localtime=True)
         message.set_content(draft.body)
-        for path_text in draft.attachments:
-            path = self.policy.attachment(path_text, self.settings.max_attachment_bytes)
-            data = path.read_bytes()
-            maintype, subtype = (mimetypes.guess_type(path.name)[0] or "application/octet-stream").split("/", 1)
-            message.add_attachment(data, maintype=maintype, subtype=subtype, filename=path.name)
+        for payload in draft.payloads or ():
+            maintype, subtype = (mimetypes.guess_type(payload.filename)[0] or "application/octet-stream").split("/", 1)
+            message.add_attachment(payload.data, maintype=maintype, subtype=subtype, filename=payload.filename)
         return message
+
+    def send_identity(self) -> dict:
+        if not self.settings.smtp_configured:
+            raise ConfigurationError("SMTP is not configured")
+        return {
+            "backend": self.name,
+            "account": self.settings.smtp_username,
+            "from": self.settings.smtp_from or self.settings.smtp_username,
+            "host": self.settings.smtp_host,
+            "port": self.settings.smtp_port,
+            "implicit_tls": self.settings.smtp_ssl,
+        }
 
     def create_draft(self, draft: Draft) -> dict:
         client = self._connect()
         try:
             message = self._message_for_draft(draft)
+            if draft.bcc:
+                message["Bcc"] = ", ".join(draft.bcc)
             typ, _ = client.append("Drafts", "\\Draft", imaplib.Time2Internaldate(time.time()), message.as_bytes())
             if typ != "OK":
                 raise BackendError("IMAP draft creation failed")
@@ -300,13 +376,22 @@ class ImapBackend:
         message = self._message_for_draft(draft)
         try:
             if self.settings.smtp_ssl:
-                client: smtplib.SMTP = smtplib.SMTP_SSL(self.settings.smtp_host, self.settings.smtp_port, context=ssl.create_default_context())
+                client: smtplib.SMTP = smtplib.SMTP_SSL(
+                    self.settings.smtp_host,
+                    self.settings.smtp_port,
+                    timeout=self.settings.network_timeout,
+                    context=ssl.create_default_context(),
+                )
             else:
-                client = smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port)
+                client = smtplib.SMTP(
+                    self.settings.smtp_host, self.settings.smtp_port, timeout=self.settings.network_timeout
+                )
                 client.starttls(context=ssl.create_default_context())
             with client:
                 client.login(self.settings.smtp_username or "", self._smtp_password or "")
-                client.send_message(message, to=[*draft.to, *draft.cc, *draft.bcc])
+                client.send_message(message, to_addrs=[*draft.to, *draft.cc, *draft.bcc])
             return {"sent": True, "recipients": list(draft.to)}
-        except Exception as exc:
-            raise BackendError("SMTP connection, authentication, or send failed") from exc
+        except Exception:
+            raise BackendError(
+                "SMTP connection, authentication, or send failed; check provider activity before retrying"
+            ) from None

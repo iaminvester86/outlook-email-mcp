@@ -1,13 +1,13 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "outlook-email-mcp",
-  "version": "0.1.0",
-  "description": "Windows-first Outlook, PST, IMAP, and SMTP email tools for summaries, search, drafts, attachments, and confirmed sending.",
+  "version": "0.2.0",
+  "description": "Read-only by default Outlook/PST, IMAP and POP3 tools with scoped stores, TLS, and mandatory local approval for enabled sending.",
   "author": {
     "name": "outlook-email-mcp contributors"
   },
-  "homepage": "https://github.com/REPLACE_WITH_OWNER/outlook-email-mcp",
-  "repository": "https://github.com/REPLACE_WITH_OWNER/outlook-email-mcp",
+  "homepage": "https://github.com/iaminvester86/outlook-email-mcp",
+  "repository": "https://github.com/iaminvester86/outlook-email-mcp",
   "license": "MIT",
   "keywords": [
     "outlook",

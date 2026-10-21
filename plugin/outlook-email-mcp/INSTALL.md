@@ -1,47 +1,26 @@
-# Outlook Email Agent Plugin
+# Outlook Email MCP plugin 0.2.0
 
-This directory is an Agent Plugins 1.0.0 package containing:
+This portable package contains `plugin.json`, `mcp.json`, and the safe-use skill in
+`skills/outlook-email/SKILL.md`. It launches a local Python MCP process; it does not
+bundle Python, install dependencies, or grant remote access to your desktop.
 
-- `plugin.json` — package metadata;
-- `mcp.json` — local stdio MCP configuration;
-- `skills/outlook-email/SKILL.md` — safe-use instructions.
+Install the server from the repository in a dedicated virtual environment, then
+replace the `command` in your imported MCP configuration with that environment's
+absolute Python executable. The included `python` command is a template for
+clients with an explicitly configured runtime environment.
 
-## Important limitation
+Follow the repository README to configure allowed Outlook StoreIDs or a network
+account and protected credentials. Writes are disabled by default. Outlook writes
+require an explicit sending account and an allowed delivery store. Every send
+requires a person to approve the full message in a local desktop window; no host
+confirmation alone bypasses this check.
 
-The package configuration launches the Python module `outlook_email_mcp`. The
-module must already be installed in the plugin data environment. Agent Plugins
-does not define a portable dependency-install step, and OmniRush.ai's current
-organization importer reports local `stdio` servers without installing them.
+Use local stdio when possible. Hosted clients cannot directly launch this local
+process. Optional HTTP/tunnel use requires the separate bearer/loopback/HTTPS
+controls in `docs/CHATGPT-TUNNEL.md` from the repository. Client compatibility must
+be tested; this package does not assume a hosted product's importer behavior.
 
-For this repository, install the server once on Windows:
-
-```powershell
-py -3 -m pip install -e ".[windows]"
-```
-
-Then configure the client using `mcp.json`, changing `cwd` to the checkout or
-installed project directory if the client does not expand `PLUGIN_DATA`.
-
-Classic Outlook must be installed for Outlook/PST access. Set
-`OUTLOOK_EMAIL_BACKEND=auto` to prefer Outlook and fall back to IMAP when
-Outlook is unavailable. IMAP/SMTP settings are documented in the repository's
-`docs/NETWORK-SOLUTIONS.md`.
-
-POP3-only providers are supported with `OUTLOOK_EMAIL_BACKEND=pop3`,
-`POP3_HOST`, `POP3_PORT=995`, and `POP3_USERNAME` plus the SMTP settings.
-POP3 can read the inbox and send through SMTP but cannot list folders or save
-drafts.
-
-For security, configure `OUTLOOK_EMAIL_ATTACHMENT_ROOTS` before using drafts or
-sends with attachments. The server rejects attachment files outside those
-roots and refuses to overwrite existing export files.
-
-The package never contains passwords, app passwords, OAuth tokens, PST files,
-or authorization headers.
-
-## ChatGPT connection
-
-ChatGPT does not install or launch this local stdio package directly. Start the
-server in loopback Streamable HTTP mode and connect it through an OpenAI Secure
-MCP Tunnel, then add it in ChatGPT web under **Plugins → + → Add custom MCP
-server → Tunnel**. The server rejects non-loopback HTTP binds by design.
+Do not add real credentials to manifests, skills, client templates, or archives.
+Refresh the client's tool inventory after upgrading; disabled write tools are
+absent, and IMAP message IDs changed. The package identity remains
+`outlook-email-mcp`; version 0.2.0 has breaking security defaults.

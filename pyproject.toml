@@ -4,14 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "outlook-email-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Windows-first Outlook and IMAP/SMTP email MCP server"
-requires-python = ">=3.10"
-dependencies = ["mcp>=1.0,<2"]
+requires-python = ">=3.11"
+readme = "README.md"
+license = "MIT"
+dependencies = ["mcp>=1.30.0,<2"]
 
 [project.optional-dependencies]
-windows = ["pywin32>=306; platform_system == 'Windows'", "keyring>=25; platform_system == 'Windows'"]
-test = ["pytest>=7"]
+windows = ["pywin32>=311; platform_system == 'Windows'", "keyring>=25.7; platform_system == 'Windows'"]
+test = ["pytest>=8", "pytest-asyncio>=1", "pyyaml>=6"]
+dev = ["bandit>=1.9.4", "pip-audit>=2.10.1", "ruff>=0.17.1", "build>=1.4"]
 
 [project.scripts]
 outlook-email-mcp = "outlook_email_mcp.server:main"
@@ -23,3 +26,11 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q"
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
